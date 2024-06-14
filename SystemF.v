@@ -638,6 +638,7 @@ Check uniq_typ.
 (* ======================= CANONICAL FORMS ==================
   Usefool lemma for facts about canonical forms regarding their type
   =========================================================== *)
+(* boolean values must be true or false *)
 Lemma can_bool : forall (Γ:ctxV)(Δ:ctxT)(M:trm),
                     (val M) -> $<Γ - Δ ⊢ M ∈ Bool>$ ->
                     (M = $<true>$  \/ M = $<false>$).
@@ -664,6 +665,7 @@ Qed.
 (* Corollary with empty term context *)
 Definition can_bool_empty := (can_bool ctx_nilV ctx_nilT).
 
+(* Natural values must be 0 or S n where n is itself a natural value *)
 Lemma can_nat : forall (Γ:ctxV)(Δ:ctxT)(M:trm),
                     (val M) -> $<Γ - Δ ⊢ M ∈ Nat>$ ->
                     (M = $<0>$ \/ (exists (N:trm),
@@ -697,9 +699,9 @@ Proof.
     destruct H1;destruct H1.
     discriminate.
 Qed.
-
+(* Corollary with empty term context *)
 Definition can_nat_empty := (can_nat ctx_nilV ctx_nilT).
-
+(* arrow type values must be λ x : σ. M *)
 Lemma can_absV : forall (Γ:ctxV)(Δ:ctxT)(M:trm)(α δ:typ),
                     (val M) -> $<Γ - Δ ⊢ M ∈ (α → δ)>$ ->
                     (exists (x:string)(N:trm),
@@ -729,9 +731,9 @@ Proof.
     destruct H1;destruct H1.
     discriminate.
 Qed.
-
+(* Corollary with empty term context *)
 Definition can_absV_empty := (can_absV ctx_nilV ctx_nilT).
-
+(* forall type values must be Λ α. M *)
 Lemma can_absT : forall (Γ:ctxV)(Δ:ctxT)(α:nat)(M:trm)(δ:typ),
                     (val M) -> $<Γ - Δ ⊢ M ∈ (∀ α, δ)>$ ->
                     (exists (N:trm),
@@ -761,11 +763,13 @@ Proof.
     inversion H0.
     split;easy.
 Qed.
-
+(* Corollary with empty term context *)
 Definition can_absT_empty := (can_absT ctx_nilV ctx_nilT).
 
 (* ================================================================
    ************************ PROGRESS ******************************
+   A well typed term can either be a value or take an evaluation step
+  *****************************************************************
    =============================================================== *)
 
 
@@ -921,7 +925,7 @@ Qed.
 
 Compute ($< "x" ; Bool V:: "x" ; Nat V:: ctx_nilV>$ "x").
 
-Lemma update_eqV : forall (Γ : ctxV)(x:string)(σ:typ),
+Fact update_eqV : forall (Γ : ctxV)(x:string)(σ:typ),
                       ($< x ; σ V:: Γ>$ x) = Some σ.
 Proof.
   intros.
@@ -930,7 +934,7 @@ Proof.
   rewrite H;easy.
 Qed.
 
-Lemma update_eqT : forall (Δ : ctxT)(α:nat),
+Fact update_eqT : forall (Δ : ctxT)(α:nat),
                       ($< α T:: Δ>$ α) = Some α.
 Proof.
   intros.
@@ -1289,8 +1293,15 @@ Qed.
 *******************SUBSTITUTION LEMMA FOR TYPES ******************************
 =============================================================================*)
 
+Definition sub_ctxV (α:nat) (σ:typ) (Γ:ctxV) : ctxV := fun x =>
+  match Γ x with
+  | None => None
+  | Some δ => Some $<TT{α → σ}δ>$  
+  end.
 
+Notation "'CTT{' α '→' σ } Γ" := (sub_ctxV α σ Γ) (in custom sys_f at level 20, α at level 0, σ at level 0).
 
+Compute ($<CTT{1 → Nat}( "y" ; (Bool → 1) V:: "x" ;  1 V:: nilV) >$ "y").
 
 
 
