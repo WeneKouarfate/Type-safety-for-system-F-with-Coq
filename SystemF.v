@@ -1,6 +1,8 @@
 Require Import String.
 Require Import Arith.
 Require Import Relations.
+Require Import Coq.Logic.FunctionalExtensionality.
+
 (* From Ltac2 Require Import Ltac2. ( * make some simple tactics composition not working *)
 (* ================== TYPES AND TERMS ====================
   Plus their annotations
@@ -1131,6 +1133,40 @@ Proof.
     assumption.
 Qed.
 
+Lemma weakeningT_neq_var : forall (Δ:ctxT)(m n:nat),
+                       (m <> n)%nat ->
+                       $< (m T:: n T:: Δ) T⊆ (n T:: m T:: Δ)>$.
+Proof.
+  intros.
+  unfold includedinT.
+  intros.
+  destruct (Nat.eqb_spec m α);destruct (Nat.eqb_spec n α).
+    rewrite <-e0 in e.
+    contradiction.
+
+    unfold ctx_consT in H0.
+    unfold ctx_consT.
+    destruct (Nat.eqb_eq m α).
+    destruct (Nat.eqb_neq n α).
+    rewrite (H4 n0);rewrite (H2 e).
+    rewrite (H4 n0) in H0;rewrite (H2 e) in H0.
+    easy.
+
+    unfold ctx_consT in H0.
+    unfold ctx_consT.
+    destruct (Nat.eqb_neq m α);destruct (Nat.eqb_eq n α).
+    rewrite (H4 e).
+    rewrite (H4 e) in H0;rewrite (H2 n0) in H0;easy.
+
+    unfold ctx_consT in H0.
+    unfold ctx_consT.
+    destruct (Nat.eqb_neq m α);destruct (Nat.eqb_neq n α).
+    rewrite (H4 n1);rewrite (H2 n0).
+    rewrite (H4 n1) in H0;rewrite (H2 n0) in H0.
+    easy.
+Qed.
+
+
 Lemma weakening_double_var : forall (Γ:ctxV)(x:string)(σ γ:typ),
                        $< (x; σ V:: x; γ V:: Γ) V⊆ (x; σ V:: Γ)>$.
 Proof.
@@ -1152,7 +1188,21 @@ Proof.
     rewrite (H1 n).
     easy.
 Qed.
- 
+
+Lemma weakeningT_double_var : forall (Δ:ctxT)(n:nat),
+                       $< (n T:: n T:: Δ) T⊆ (n T:: Δ)>$.
+Proof.
+  unfold includedinT;intros.
+  destruct (Nat.eqb_spec n α).
+    destruct (Nat.eqb_eq n α).
+    unfold ctx_consT in H;unfold ctx_consT.
+    rewrite (H1 e) in H;rewrite (H1 e);easy.
+
+    destruct (Nat.eqb_neq n α).
+    unfold ctx_consT in H;unfold ctx_consT.
+    rewrite (H1 n0) in H;rewrite (H1 n0);easy.
+Qed.
+
 Lemma weakeningV_abs_var : forall (Γ:ctxV)(Δ:ctxT)(x:string)(M:trm)(σ δ γ:typ),
                        $<(x ; γ V:: Γ) - Δ ⊢ ( λ x : σ, M) ∈ δ >$ ->
                         $< Γ - Δ ⊢ ( λ x : σ, M) ∈ δ >$.
@@ -1289,6 +1339,26 @@ Proof with eauto with sys_f_base.
   exact (typ_rel_iszero _ _ _ H4).
 Qed.
 
+(* =======================================================================
+***************************************************************************
+*************************VARIABLE CONVENTION*******************************
+***************************************************************************
+===========================================================================*)
+Hypothesis sys_f_var_conv_sub : forall (α μ:nat)(σ δ γ:typ),
+                                  $<TT{α → σ}(∀ μ, δ)>$ = γ ->
+                                  (forall (τ:typ),
+                                        $<TT{μ → τ}σ>$ = σ).
+
+Hypothesis sys_f_var_con : forall (Γ:ctxV)(Δ:ctxT)(M:trm)(σ:typ)(α:nat),
+                                        $< Γ - Δ ⊢ M ∈ (∀α, σ)>$ -> (Δ α) = None.
+Fact sys_f_var_conv : forall (Γ:ctxV)(Δ:ctxT)(M:trm)(σ:typ)(α:nat),
+                                        $< Γ - α T:: Δ ⊢ M ∈ σ>$ -> (Δ α) = None.
+Proof.
+  intros.
+  assert ($< Γ - Δ ⊢ Λ α, M ∈ (∀ α, σ) >$) by exact (typ_rel_all_i _ _ _ _ _ H).
+  exact (sys_f_var_con _ _ _ _ _ H0).
+Qed.
+
 (*============================================================================
 *******************SUBSTITUTION LEMMA FOR TYPES ******************************
 =============================================================================*)
@@ -1303,11 +1373,308 @@ Notation "'CTT{' α '→' σ } Γ" := (sub_ctxV α σ Γ) (in custom sys_f at le
 
 Compute ($<CTT{1 → Nat}( "y" ; (Bool → 1) V:: "x" ;  1 V:: nilV) >$ "y").
 
+Lemma sub_ctxV_distr : forall (Γ:ctxV)(σ δ:typ)(α:nat)(x y:string),
+                          $< CTT{ α → δ} (x; σ V:: Γ)>$ y= ($<x ;(TT{α → δ}σ) V:: (CTT{ α → δ} Γ)>$ y).
+Proof.
+  unfold sub_ctxV;unfold ctx_consV;intros.
+  Check ($< CTT{ α → δ} (x; σ V:: Γ)>$).
+  destruct (eqb_spec x y);easy.
+Qed.
+Lemma sub_ctxV_distr_eq : forall (Γ:ctxV)(σ δ:typ)(α:nat)(x:string),
+                          $< CTT{ α → δ} (x; σ V:: Γ)>$ = $<x ;(TT{α → δ}σ) V:: (CTT{ α → δ} Γ)>$.
+Proof.
+  intros.
+  assert (forall y : string,
+       $< CTT{ α → δ} (x; σ V:: Γ) >$ y = $< x; TT{ α → δ} σ V:: CTT{ α → δ} Γ >$ y)
+       by exact (sub_ctxV_distr Γ σ δ α x).
+
+  exact (functional_extensionality $< CTT{ α → δ} (x; σ V:: Γ) >$ $<x ;(TT{α → δ}σ) V:: (CTT{ α → δ} Γ)>$ H) .
+Qed.
+
+Lemma BV_CTT : forall (Δ:ctxT)(σ δ:typ)(α:nat),
+                    BV Δ δ ->
+                    BV $<α T:: Δ>$ σ ->
+                    BV Δ $<TT{α → δ}σ>$.
+Proof.
+  intros.
+  generalize dependent Δ.
+  induction σ;intros.
+
+  compute;eauto using BV.
+
+  compute;eauto using BV.
+
+  destruct (Nat.eqb_spec n α).
+    destruct (Nat.eqb_eq n α).
+    simpl.
+    rewrite (H2 e).
+    easy.
+
+    destruct (Nat.eqb_neq n α).
+    simpl.
+    rewrite (H2 n0).
+    inversion H0.
+    unfold ctx_consT in H4.
+    destruct (Nat.eqb_neq α n).
+    assert (α <> n) by easy.
+    rewrite (H6 H7) in H4.
+    eauto using BV.
+
+  simpl.
+  inversion H0.
+  assert (BV Δ $< TT{ α → δ} σ1 >$) by exact (IHσ1 _ H H3).
+  assert (BV Δ $< TT{ α → δ} σ2 >$) by exact (IHσ2 _ H H4).
+  eauto using BV.
+
+  assert (BV $< n T:: Δ >$ δ) by exact (BV_cons_updateT _ n _ H).
+  inversion H0.
+  destruct (Nat.eqb_spec n α).
+  simpl.
+  destruct (Nat.eqb_eq n α).
+  rewrite (H6 e).
+  rewrite <- e in H3.
+  assert ($< n T:: n T:: Δ T⊆ n T:: Δ >$) by exact (weakeningT_double_var Δ n).
+  assert (BV $< n T:: Δ >$ σ) by exact ((BV_updateT _ _ σ H7) H3).
+  exact (bv_all _ _ _ H8).
+
+  assert ($< n T:: α T:: Δ T⊆ α T:: n T:: Δ >$) by exact (weakeningT_neq_var Δ _ _ n0).
+  assert (BV $< α T:: n T:: Δ >$ σ) by exact ((BV_updateT _ _ σ H5) H3).
+  assert (BV $< n T:: Δ >$ $< TT{ α → δ} σ >$) by exact (IHσ _ H1 H6).
+  assert (BV Δ $< ∀ n, TT{ α → δ} σ >$) by exact (bv_all _ _ _ H7).
+  simpl.
+  destruct (Nat.eqb_neq n α).
+  rewrite (H10 n0).
+  easy.
+Qed.
+
+Lemma no_sub_BV : forall (Δ:ctxT)(σ:typ)(α:nat),
+                        (Δ α) = None -> BV Δ σ ->
+                        forall (δ:typ),
+                              $<TT{α → δ}σ>$ = σ.
+Proof.
+  intros.
+  generalize dependent Δ.
+  induction σ;intros;simpl;inversion H0; try easy.
+  
+  destruct (Nat.eqb_spec n α).
+    rewrite e in H2;rewrite H2 in H.
+    easy.
+
+    easy.
+
+  rewrite (IHσ1 _ H H3);rewrite (IHσ2 _ H H4).
+  easy.
+
+  destruct (Nat.eqb_spec n α); simpl; try easy.
+  assert ($<n T:: Δ>$ α = None).
+    unfold ctx_consT.
+    destruct (Nat.eqb_neq n α).
+    rewrite (H5 n0);easy.
+  rewrite (IHσ _ H4 H2).
+  easy.
+Qed.
+
+Lemma substitution_typ : forall (σ δ γ:typ)(α μ:nat),
+                             α <> μ ->
+                             (forall (τ:typ), $<TT{μ → τ}δ>$ = δ) ->
+                             $<TT{α → δ} (TT{μ → γ}σ)>$ = $<TT{μ → (TT{α → δ}γ)} (TT{α → δ}σ)>$.
+Proof.
+  induction σ; intros;simpl; try easy.
+    destruct (Nat.eqb_spec n μ);destruct (Nat.eqb_spec n α).
+      rewrite e0 in e;easy.
+
+      unfold sub_typ at 2.
+      destruct (Nat.eqb_eq n μ).
+      rewrite (H2 e);easy.
+
+      rewrite (H0 $<TT{ α → δ} γ>$).
+      rewrite e;simpl.
+      rewrite (Nat.eqb_refl α);easy.
+
+      simpl.
+      destruct (Nat.eqb_neq n α);destruct (Nat.eqb_neq n μ).
+      rewrite (H4 n0);rewrite (H2 n1);easy.
+
+    rewrite (IHσ1 _ γ _ _ H H0).
+    rewrite (IHσ2 _ γ _ _ H H0).
+    easy.
+
+    destruct (Nat.eqb_spec n μ);destruct (Nat.eqb_spec n α);simpl.
+      rewrite e0 in e;easy.
+
+      destruct (Nat.eqb_neq n α);destruct (Nat.eqb_eq n μ).
+      rewrite (H4 e); rewrite (H2 n0).
+      easy.
+
+      destruct (Nat.eqb_eq n α);destruct (Nat.eqb_neq n μ).
+      rewrite (H4 n0); rewrite (H2 e).
+      pose proof (sys_f_var_conv_sub μ α γ σ).
+      unfold sub_typ in H5 at 1.
+      destruct (Nat.eqb_neq α μ).
+      rewrite e in n0.
+      rewrite (H7 n0) in H5.
+      fold sub_typ in H5.
+      rewrite <-e in H5.
+      assert ($< ∀ n, TT{ μ → γ} σ >$ = $< TT{ μ → γ} (∀ n, σ) >$).
+        simpl.
+        rewrite <- e in n0.
+        rewrite (H4 n0).
+        easy.
+      rewrite <- e.
+      rewrite ((H5 $< TT{ μ → γ} (∀ n, σ) >$ H8) δ).
+      easy.
+
+      destruct (Nat.eqb_neq n α);destruct (Nat.eqb_neq n μ).
+      rewrite (H4 n0); rewrite (H2 n1).
+      rewrite (IHσ _ γ _ _ H H0).
+      easy.
+Qed.
 
 
+(*====================LEMMA====================*)
 
 
+Lemma substitutionT : forall (Γ:ctxV)(Δ:ctxT)(M:trm)(σ δ:typ)(α:nat),
+                            BV Δ δ ->
+                            $<Γ - α T::Δ ⊢ M ∈ σ>$ ->
+                            $<CTT{α → δ}Γ - Δ ⊢ TV{α → δ}M ∈ TT{α → δ}σ>$.
+Proof.
+  intros.
+  generalize dependent Δ.
+  generalize dependent Γ.
+  generalize dependent σ.
+  induction M;intros.
+Show 2.
+  
 
+  (*Variables*)
+  apply typ_rel_var;inversion H0.
+    exact (BV_CTT _ _ _ _ H H2).
+
+    unfold sub_ctxV.
+    rewrite H3.
+    easy.
+
+  (*Term terms abstractions*)
+  inversion H0.
+  assert ($< CTT{ α → δ} (s; t V:: Γ) - Δ ⊢ TV{ α → δ} M ∈ TT{ α → δ} δ0 >$) by exact (IHM _ _ _ H H5).
+  simpl.
+  simpl in H6.
+  rewrite (sub_ctxV_distr_eq Γ t δ α s) in H6.
+  apply typ_rel_arr_i;easy.
+
+  (*Terms abstraction *)
+  assert (Δ α = None) by exact (sys_f_var_conv _ _ _ _ _ H0).
+  simpl.
+  destruct (Nat.eqb_eq n α).
+  destruct (Nat.eqb_eq α n).
+  destruct  (Nat.eqb_spec n α).
+  assert (α = n) by exact (Nat.eq_sym e).
+    inversion H0.
+    (* α = n *)
+    assert ($< α T:: Δ >$ n = None) by exact (sys_f_var_conv _ _ _ _ _ H10).
+    unfold ctx_consT in H11.
+    rewrite (H5 H6) in H11.
+    easy.
+    (* α =\= n *)
+    clear H2 H3 H4 H5.
+    destruct (Nat.eqb_neq α n).
+    rewrite (H3 ((Nat.neq_sym n α) n0)).
+    inversion H0.
+    assert (BV $< n T:: Δ >$ δ) by exact (BV_updateT _ _ _ (cons_includedinT Δ n) H).
+    assert ($< Γ - α T:: n T:: Δ ⊢ M ∈ σ0 >$) by exact (weakeningT _ _ _ _ _ (weakeningT_neq_var Δ n α n0) H7).
+    assert ($< CTT{ α → δ} Γ - n T:: Δ ⊢ TV{ α → δ} M ∈ TT{ α → δ} σ0 >$) by exact (IHM _ _ _ H8 H9).
+    unfold sub_typ.
+    destruct (Nat.eqb_neq n α).
+    rewrite (H12 n0).
+    fold sub_typ.
+    apply typ_rel_all_i.
+    easy.
+
+  (* terms application*)
+  inversion H0.
+  assert ($< CTT{ α → δ} Γ - Δ ⊢ TV{ α → δ} M1 ∈ TT{ α → δ} (σ0 → σ) >$) by exact (IHM1 _ _ _ H H3).
+  assert ($< CTT{ α → δ} Γ - Δ ⊢ TV{ α → δ} M2 ∈ TT{ α → δ} σ0 >$) by exact (IHM2 _ _ _ H H5).
+  simpl in H6.
+  apply typ_rel_arr_e with (σ := $<TT{ α → δ} σ0>$);fold sub_typ2;easy.
+
+  (*type application*)
+  inversion H0.
+  simpl.
+  destruct  (Nat.eqb_spec α α0).
+    (* α = α0 *)
+    rewrite e in H4.
+    assert ($< α0 T:: Δ >$ α0 = None) by exact (sys_f_var_con _ _ _ _ _ H4).
+    unfold ctx_consT in H5.
+    rewrite (Nat.eqb_refl α0) in H5.
+    easy.
+    (* α =\= α0 *)
+    assert ($< CTT{ α → δ} Γ - Δ ⊢ TV{ α → δ} M ∈ TT{ α → δ} (∀ α0, σ0) >$) by exact (IHM _ _ _ H H4).
+    simpl in H5.
+    destruct (Nat.eqb_neq α0 α).
+    rewrite (H7 (Nat.neq_sym α α0 n)) in H5.
+    assert 
+      ($< CTT{ α → δ} Γ - Δ ⊢ (TV{ α → δ} M) [TT{ α → δ} t] ∈ TT{ α0 → TT{ α → δ} t} (TT{ α → δ} σ0) >$)
+      by exact (typ_rel_all_e _ _ _ _ _ $<TT{ α → δ} t>$ H5).
+      pose proof (sys_f_var_con _ _ _ _ _ H5).
+      pose proof (no_sub_BV _ _ _ H9 H).
+      rewrite (substitution_typ σ0 _ t _ _ n H10).
+      easy.
+
+  (*true*)
+  inversion H0.
+  simpl.
+  apply typ_rel_true.
+
+  (*false*)
+  inversion H0.
+  simpl.
+  apply typ_rel_false.
+
+  (*If then else*)
+  inversion H0.
+  pose proof (IHM1 _ _ _ H H4).
+  pose proof (IHM2 _ _ _ H H6).
+  pose proof (IHM3 _ _ _ H H7).
+  apply typ_rel_if;easy.
+
+  (* Zero *)
+  inversion H0.
+  simpl; apply typ_rel_zero.
+
+  (* Succ *)
+  inversion H0.
+  pose proof (IHM _ _ _ H H2).
+  apply typ_rel_succ;easy.
+
+  (* Pred *)
+  inversion H0.
+  pose proof (IHM _ _ _ H H2).
+  apply typ_rel_pred;easy.
+
+  (* Zerop *)
+  inversion H0.
+  pose proof (IHM _ _ _ H H2).
+  apply typ_rel_iszero;easy.
+Qed.
+
+(*===================================================================
+*********************************************************************
+***************************PRESERVATION******************************
+*********************************************************************
+=====================================================================*)
+Theorem sys_f_preservation : forall (Γ:ctxV)(Δ:ctxT)(σ:typ)(M N:trm),
+                            $<Γ - Δ ⊢ M ∈ σ>$ -> (exists (N:trm),
+                            $<M →β N>$-> $<Γ - Δ ⊢ N ∈ σ>$).
+Proof.
+  intros.
+  generalize dependent M.
+  generalize dependent Γ.
+  generalize dependent Δ.
+  generalize dependent σ.
+  
+  
+  
 
 
 
