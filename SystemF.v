@@ -2,6 +2,7 @@ Require Import String.
 Require Import Arith.
 Require Import Relations.
 Require Import Coq.Logic.FunctionalExtensionality.
+Require Import Coq.Program.Equality.
 
 (* From Ltac2 Require Import Ltac2. ( * make some simple tactics composition not working *)
 (* ================== TYPES AND TERMS ====================
@@ -323,6 +324,7 @@ Inductive typ_rel (Γ : ctxV)(Δ : ctxT) : trm -> typ -> Prop :=
                       $<Γ - (α T:: Δ) ⊢ M ∈ σ>$ ->
                       $<Γ - Δ ⊢ (Λ α , M) ∈ (∀α , σ)>$
   | typ_rel_all_e : forall (α : nat)(M : trm)(σ δ : typ),
+                      BV Δ δ ->
                       $<Γ - Δ ⊢ M ∈ (∀ α , σ)>$ ->
                       $<Γ - Δ ⊢ (M [δ]) ∈ (TT{α → δ}σ)>$
   | typ_rel_true : $<Γ - Δ ⊢ true ∈ Bool>$
@@ -518,6 +520,7 @@ Lemma itr_appT : forall (Γ : ctxV)(Δ : ctxT)(M:trm)(σ δ:typ),
                       $<Γ - Δ ⊢ M ∈ (∀ α,γ)>$ /\ σ = $<TT{α → δ}γ>$).
 Proof.
   intros;inversion H.
+  Print typ_rel.
   exists α.
   exists σ0.
   easy.
@@ -813,21 +816,22 @@ Proof with eauto with sys_f_base.
   left.
   auto using val.
 
+  
   right.
   assert ($< nilV >$ = $< nilV >$) by easy.
   assert ($< nilT >$ = $< nilT >$) by easy.
-  assert (val M \/ (exists N : trm, $< M →β N >$)) by exact (IHtyp_rel H0 H1).
-  clear IHtyp_rel H1 H0.
-  destruct H2.
+  assert (val M \/ (exists N : trm, $< M →β N >$)) by exact (IHtyp_rel H1 H2).
+  clear IHtyp_rel H1 H2.
+  destruct H3.
     assert (exists N : trm,
-        $< nilV - α T:: nilT ⊢ N ∈ σ >$ /\ M = $< Λ α, N >$) by exact (can_absT_empty _ _ _ H0 H).
-    clear H0;destruct H1;destruct H0.
+        $< nilV - α T:: nilT ⊢ N ∈ σ >$ /\ M = $< Λ α, N >$) by exact (can_absT_empty _ _ _ H1 H0).
+    clear H1;destruct H2;destruct H1.
     assert ($< (Λ α, x) [δ] →β TV{ α → δ} x >$) by exact (red_T_redex α x δ).
-    rewrite <- H1 in H2.
+    rewrite <- H2 in H3.
     exists ($<TV{ α → δ} x >$);easy.
 
-   destruct H0.
-   assert ($< M [δ] →β x [δ] >$) by exact (red_appT _ _ δ H0).
+   destruct H1.
+   assert ($< M [δ] →β x [δ] >$) by exact (red_appT _ _ δ H1).
    exists ($<x [δ] >$);easy.
 
   left.
@@ -1295,7 +1299,8 @@ Proof with eauto with sys_f_base.
   destruct (itr_appT _ _ _ _ _ H0); destruct H2;destruct H2.
   assert ($< Γ - Δ ⊢ V{ x → s} M ∈ (∀ x0, x1) >$) by exact (IHM _ _ H H1 _ H2).
   rewrite H3;simpl.
-  exact (typ_rel_all_e _ _ _ _ _ t H4).
+  inversion H0.
+  exact (typ_rel_all_e Γ Δ x0 $<V{ x → s} M>$ x1 t H7 H4).
 
   (* TRUE *)
   simpl.
@@ -1348,6 +1353,11 @@ Hypothesis sys_f_var_conv_sub : forall (α μ:nat)(σ δ γ:typ),
                                   $<TT{α → σ}(∀ μ, δ)>$ = γ ->
                                   (forall (τ:typ),
                                         $<TT{μ → τ}σ>$ = σ).
+
+(* THE FOLLOWING TWO HYPOTHESIS SHOULD BE PROVABLE LATER *)
+
+Hypothesis sys_f_var_conv_absV : forall (Γ:ctxV)(Δ:ctxT)(σ δ:typ)(M:trm)(x:string),
+                  $< Γ - Δ ⊢ (λ x : σ, M) ∈ δ >$ -> BV Δ σ.
 
 Hypothesis sys_f_var_con : forall (Γ:ctxV)(Δ:ctxT)(M:trm)(σ:typ)(α:nat),
                                         $< Γ - Δ ⊢ M ∈ (∀α, σ)>$ -> (Δ α) = None.
@@ -1603,22 +1613,23 @@ Show 2.
   simpl.
   destruct  (Nat.eqb_spec α α0).
     (* α = α0 *)
-    rewrite e in H4.
-    assert ($< α0 T:: Δ >$ α0 = None) by exact (sys_f_var_con _ _ _ _ _ H4).
-    unfold ctx_consT in H5.
-    rewrite (Nat.eqb_refl α0) in H5.
+    rewrite e in H5.
+    assert ($< α0 T:: Δ >$ α0 = None) by exact (sys_f_var_con _ _ _ _ _ H5).
+    unfold ctx_consT in H6.
+    rewrite (Nat.eqb_refl α0) in H6.
     easy.
     (* α =\= α0 *)
-    assert ($< CTT{ α → δ} Γ - Δ ⊢ TV{ α → δ} M ∈ TT{ α → δ} (∀ α0, σ0) >$) by exact (IHM _ _ _ H H4).
-    simpl in H5.
+    assert ($< CTT{ α → δ} Γ - Δ ⊢ TV{ α → δ} M ∈ TT{ α → δ} (∀ α0, σ0) >$) by exact (IHM _ _ _ H H5).
+    simpl in H6.
     destruct (Nat.eqb_neq α0 α).
-    rewrite (H7 (Nat.neq_sym α α0 n)) in H5.
+    rewrite (H8 (Nat.neq_sym α α0 n)) in H6.
+    pose proof (BV_CTT _ _ _ _ H H3).
     assert 
       ($< CTT{ α → δ} Γ - Δ ⊢ (TV{ α → δ} M) [TT{ α → δ} t] ∈ TT{ α0 → TT{ α → δ} t} (TT{ α → δ} σ0) >$)
-      by exact (typ_rel_all_e _ _ _ _ _ $<TT{ α → δ} t>$ H5).
-      pose proof (sys_f_var_con _ _ _ _ _ H5).
-      pose proof (no_sub_BV _ _ _ H9 H).
-      rewrite (substitution_typ σ0 _ t _ _ n H10).
+      by exact (typ_rel_all_e _ _ _ _ _ $<TT{ α → δ} t>$ H9 H6).
+      pose proof (sys_f_var_con _ _ _ _ _ H6).
+      pose proof (no_sub_BV _ _ _ H11 H).
+      rewrite (substitution_typ σ0 _ t _ _ n H12).
       easy.
 
   (*true*)
@@ -1663,18 +1674,55 @@ Qed.
 ***************************PRESERVATION******************************
 *********************************************************************
 =====================================================================*)
-Theorem sys_f_preservation : forall (Γ:ctxV)(Δ:ctxT)(σ:typ)(M N:trm),
-                            $<Γ - Δ ⊢ M ∈ σ>$ -> (exists (N:trm),
-                            $<M →β N>$-> $<Γ - Δ ⊢ N ∈ σ>$).
+Theorem sys_f_preservation : forall (Δ:ctxT)(σ:typ)(M N:trm),
+                            $<nilV - Δ ⊢ M ∈ σ>$ ->
+                            $<M →β N>$ -> $<nilV - Δ ⊢ N ∈ σ>$.
 Proof.
   intros.
-  generalize dependent M.
-  generalize dependent Γ.
-  generalize dependent Δ.
-  generalize dependent σ.
-  
-  
-  
+  generalize dependent N.
+  dependent induction H;fold ctx_nilV in *;intros; pose proof (eq_refl $<nilV>$);try solve [inversion H0].
+
+  inversion H1.
+  rewrite <- H4 in H.
+  inversion H.
+  pose proof (sys_f_var_conv_absV _ _ _ _ _ _ H).
+  rewrite H10 in H12.
+  apply substitutionV with (σ:=σ);easy.
+
+  pose proof (IHtyp_rel1 H2 _ H6).
+  apply typ_rel_arr_e with (σ:=σ);easy.
+
+  pose proof (IHtyp_rel2 H2 _ H7).
+  apply typ_rel_arr_e with (σ:=σ);easy.
+
+  inversion H1.
+  rewrite <- H4 in H0;inversion H0.
+  exact (substitutionT $<nilV>$ Δ M0 σ δ α H H7).
+
+  pose proof (IHtyp_rel H2 _ H6).
+  apply typ_rel_all_e;easy.
+
+  inversion H2.
+
+  rewrite H4 in H0;easy.
+
+  rewrite H4 in H1;easy.
 
 
+  pose proof (IHtyp_rel1 H3 _ H8).
+  apply typ_rel_if;easy.
 
+  inversion H0.
+  pose proof (IHtyp_rel H1 _ H3).
+  apply typ_rel_succ;easy.
+
+  inversion H0;try solve [eauto using typ_rel].
+    
+
+    rewrite <- H2 in H.
+    inversion H.
+    rewrite <- H4.
+    easy.
+
+  inversion H0; try solve [eauto using typ_rel].  
+Qed.
