@@ -314,6 +314,7 @@ Inductive typ_rel (Γ : ctxV)(Δ : ctxT) : trm -> typ -> Prop :=
                       (Γ x) = Some σ ->(* Will need to use compute tactic *)
                       $<Γ - Δ ⊢ x ∈ σ>$
   | typ_rel_arr_i : forall (x : string)(M : trm)(σ δ : typ),
+                      BV Δ σ ->
                       $<(x ; σ V:: Γ) - Δ ⊢ M ∈ δ>$ ->
                       $<Γ - Δ ⊢ (λ x : σ, M) ∈ (σ → δ)>$
   | typ_rel_arr_e : forall (M N : trm)(σ δ : typ),
@@ -1214,8 +1215,10 @@ Proof.
   intros.
   inversion H.
   apply typ_rel_arr_i.
+  easy.
   assert ($< x; σ V:: x; γ V:: Γ V⊆ x; σ V:: Γ >$) by exact (weakening_double_var Γ x σ γ).
-  exact (weakeningV _ _ _ _ _ H5 H4).
+    
+    exact (weakeningV _ _ _ _ _ H6 H5).
 Qed.
 
 
@@ -1271,12 +1274,13 @@ Proof with eauto with sys_f_base.
   assert ($< s0; t V:: x; σ V:: Γ V⊆ x; σ V:: s0; t V:: Γ >$) by exact (weakening_neq_var Γ s0 x t σ (not_eq_sym n)).
   assert ($< (x; σ V:: s0; t V:: Γ) - Δ ⊢ M ∈ x0 >$) by exact (weakeningV _ _ _ _ _ H4 H2).
   assert ($< (s0; t V:: Γ) - Δ ⊢ V{ x → s} M ∈ x0 >$) by exact (IHM _ _ H H1 _ H5).
-  assert ($< Γ - Δ ⊢ λ s0 : t, V{ x → s} M ∈ (t → x0) >$) by exact (typ_rel_arr_i _ _ _ _ _ _ H6).
+  inversion H0.  
+  assert ($< Γ - Δ ⊢ λ s0 : t, V{ x → s} M ∈ (t → x0) >$) by exact (typ_rel_arr_i _ _ _ _ _ _  H9 H6).
   unfold sub_trm.
   destruct (eqb_neq x s0).
-  rewrite (H9 n).
+  rewrite (H15 n).
   fold sub_trm.
-  rewrite <- H3 in H7.
+  rewrite <- H3 in H13.
   assumption.
 
   (* ABSTRACTION ON TYPES *)
@@ -1348,19 +1352,26 @@ Qed.
 ***************************************************************************
 *************************VARIABLE CONVENTION*******************************
 ***************************************************************************
+types and terms variable are chosen so that the set of bound variables are
+disjointed among every involved types and terms.
 ===========================================================================*)
 Hypothesis sys_f_var_conv_sub : forall (α μ:nat)(σ δ γ:typ),
                                   $<TT{α → σ}(∀ μ, δ)>$ = γ ->
                                   (forall (τ:typ),
                                         $<TT{μ → τ}σ>$ = σ).
 
-(* THE FOLLOWING TWO HYPOTHESIS SHOULD BE PROVABLE LATER *)
-
-Hypothesis sys_f_var_conv_absV : forall (Γ:ctxV)(Δ:ctxT)(σ δ:typ)(M:trm)(x:string),
-                  $< Γ - Δ ⊢ (λ x : σ, M) ∈ δ >$ -> BV Δ σ.
-
+(* THE FOLLOWING HYPOTHESIS SHOULD BE PROVABLE LATER *)
 Hypothesis sys_f_var_con : forall (Γ:ctxV)(Δ:ctxT)(M:trm)(σ:typ)(α:nat),
                                         $< Γ - Δ ⊢ M ∈ (∀α, σ)>$ -> (Δ α) = None.
+
+Print typ_rel.
+
+Fact sys_f_var_conv_absV : forall (Γ:ctxV)(Δ:ctxT)(σ δ:typ)(M:trm)(x:string),
+                  $< Γ - Δ ⊢ (λ x : σ, M) ∈ δ >$ -> BV Δ σ.
+Proof.
+  intros;inversion H;easy.
+Qed.
+
 Fact sys_f_var_conv : forall (Γ:ctxV)(Δ:ctxT)(M:trm)(σ:typ)(α:nat),
                                         $< Γ - α T:: Δ ⊢ M ∈ σ>$ -> (Δ α) = None.
 Proof.
@@ -1567,10 +1578,11 @@ Show 2.
 
   (*Term terms abstractions*)
   inversion H0.
-  assert ($< CTT{ α → δ} (s; t V:: Γ) - Δ ⊢ TV{ α → δ} M ∈ TT{ α → δ} δ0 >$) by exact (IHM _ _ _ H H5).
+  assert ($< CTT{ α → δ} (s; t V:: Γ) - Δ ⊢ TV{ α → δ} M ∈ TT{ α → δ} δ0 >$) by exact (IHM _ _ _ H H6).
   simpl.
-  simpl in H6.
-  rewrite (sub_ctxV_distr_eq Γ t δ α s) in H6.
+  simpl in H7.
+  rewrite (sub_ctxV_distr_eq Γ t δ α s) in H7.
+  pose proof (BV_CTT _ _ _ _ H H5).
   apply typ_rel_arr_i;easy.
 
   (*Terms abstraction *)
@@ -1680,13 +1692,13 @@ Theorem sys_f_preservation : forall (Δ:ctxT)(σ:typ)(M N:trm),
 Proof.
   intros.
   generalize dependent N.
-  dependent induction H;fold ctx_nilV in *;intros; pose proof (eq_refl $<nilV>$);try solve [inversion H0].
+  dependent induction H;fold ctx_nilV in *;intros; pose proof (eq_refl $<nilV>$);try solve [inversion H0 + inversion H1].
 
   inversion H1.
   rewrite <- H4 in H.
   inversion H.
   pose proof (sys_f_var_conv_absV _ _ _ _ _ _ H).
-  rewrite H10 in H12.
+  rewrite H10 in H13.
   apply substitutionV with (σ:=σ);easy.
 
   pose proof (IHtyp_rel1 H2 _ H6).
