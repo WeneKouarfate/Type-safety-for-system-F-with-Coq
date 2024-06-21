@@ -347,6 +347,7 @@ Inductive typ_rel (Γ : ctxV)(Δ : ctxT) : trm -> typ -> Prop :=
                       $<Γ - Δ ⊢ (Z M) ∈ Bool>$
 where "Γ '-' Δ '⊢' t ∈ T" := (typ_rel Γ Δ t T)(in custom sys_f).
 
+
 Check clos_refl_sym_trans trm one_step_red.
 Check multi_step_red.
 
@@ -1229,7 +1230,7 @@ Qed.
 Lemma substitutionV : forall (Γ:ctxV)(Δ:ctxT)(x:string)(M s:trm)(σ δ:typ),
                                 (BV Δ σ) ->
                                 $<(x ; σ V:: Γ) - Δ ⊢ M ∈ δ>$ ->
-                                $< nilV - Δ ⊢ s ∈ σ>$ ->
+                                $< nilV - nilT ⊢ s ∈ σ>$ ->
                                 $< Γ - Δ ⊢ (V{x → s}M) ∈ δ>$.
 Proof with eauto with sys_f_base.
   intros.
@@ -1253,6 +1254,7 @@ Proof with eauto with sys_f_base.
   assert (δ = σ) by exact (uniq_typ _ _ _ _ _ H0 H2).
   rewrite <- H3 in H1.
   apply empty_weakeningV.
+  apply empty_weakeningT.
   easy.
 
   (* ABSTRACTION ON TERMS *)
@@ -1273,7 +1275,7 @@ Proof with eauto with sys_f_base.
   exact (weakeningV_abs_var _ _ _ _ _ _ _ H0).
   assert ($< s0; t V:: x; σ V:: Γ V⊆ x; σ V:: s0; t V:: Γ >$) by exact (weakening_neq_var Γ s0 x t σ (not_eq_sym n)).
   assert ($< (x; σ V:: s0; t V:: Γ) - Δ ⊢ M ∈ x0 >$) by exact (weakeningV _ _ _ _ _ H4 H2).
-  assert ($< (s0; t V:: Γ) - Δ ⊢ V{ x → s} M ∈ x0 >$) by exact (IHM _ _ H H1 _ H5).
+  assert ($< (s0; t V:: Γ) - Δ ⊢ V{ x → s} M ∈ x0 >$) by exact (IHM _ _ H _ H5).
   inversion H0.  
   assert ($< Γ - Δ ⊢ λ s0 : t, V{ x → s} M ∈ (t → x0) >$) by exact (typ_rel_arr_i _ _ _ _ _ _  H9 H6).
   unfold sub_trm.
@@ -1286,22 +1288,20 @@ Proof with eauto with sys_f_base.
   (* ABSTRACTION ON TYPES *)
   destruct (itr_absT _ _ _ _ _ H0);destruct H2.
   assert (BV $< n T:: Δ >$ σ) by exact (BV_cons_updateT _ n _ H).
-  assert ($< Δ T⊆ n T:: Δ >$) by exact (cons_includedinT Δ n).
-  assert ($< nilV - n T:: Δ ⊢ s ∈ σ >$) by exact (weakeningT _ _ _ _ _ H5 H1).
-  assert ($< Γ - n T:: Δ ⊢ V{ x → s} M ∈ x0 >$) by exact (IHM _ _ H4 H6 _ H2).
-  assert ($< Γ - Δ ⊢ Λ n, V{ x → s} M ∈ (∀ n, x0) >$) by exact (typ_rel_all_i _ _ _ _ _ H7).
-  rewrite H3;simpl;assumption.
+  assert ($< Γ - n T:: Δ ⊢ V{ x → s} M ∈ x0 >$) by exact (IHM _ _ H4  _ H2).
+  rewrite H3.
+  apply typ_rel_all_i;easy.
 
   (*TERMS APPLICATION *)
   destruct (itr_appV _ _ _ _ _ H0);destruct H2;destruct H2;destruct H3.
-  assert ($< Γ - Δ ⊢ V{ x → s} M1 ∈ (x0 → x1) >$) by exact (IHM1 _ _ H H1 _ H2).
-  assert ($< Γ - Δ ⊢ V{ x → s} M2 ∈ x0 >$) by exact (IHM2 _ _ H H1 _ H3).
+  assert ($< Γ - Δ ⊢ V{ x → s} M1 ∈ (x0 → x1) >$) by exact (IHM1 _ _ H _ H2).
+  assert ($< Γ - Δ ⊢ V{ x → s} M2 ∈ x0 >$) by exact (IHM2 _ _ H _ H3).
   simpl; rewrite H4.
   exact (typ_rel_arr_e _ _ _ _ _ _ H5 H6).
 
   (*TYPE APPLICATION *)
   destruct (itr_appT _ _ _ _ _ H0); destruct H2;destruct H2.
-  assert ($< Γ - Δ ⊢ V{ x → s} M ∈ (∀ x0, x1) >$) by exact (IHM _ _ H H1 _ H2).
+  assert ($< Γ - Δ ⊢ V{ x → s} M ∈ (∀ x0, x1) >$) by exact (IHM _ _ H _ H2).
   rewrite H3;simpl.
   inversion H0.
   exact (typ_rel_all_e Γ Δ x0 $<V{ x → s} M>$ x1 t H7 H4).
@@ -1318,9 +1318,9 @@ Proof with eauto with sys_f_base.
 
   (* IF THEN ELSE *)
   destruct (itr_ite _ _ _ _ _ _ H0);destruct H3.
-  assert ($< Γ - Δ ⊢ V{ x → s} M1 ∈ Bool >$) by exact (IHM1 _ _ H H1 _ H2).
-  assert ($< Γ - Δ ⊢ V{ x → s} M2 ∈ δ >$) by exact (IHM2 _ _ H H1 _ H3).
-  assert ($< Γ - Δ ⊢ V{ x → s} M3 ∈ δ >$) by exact (IHM3 _ _ H H1 _ H4).
+  assert ($< Γ - Δ ⊢ V{ x → s} M1 ∈ Bool >$) by exact (IHM1 _ _ H _ H2).
+  assert ($< Γ - Δ ⊢ V{ x → s} M2 ∈ δ >$) by exact (IHM2 _ _ H _ H3).
+  assert ($< Γ - Δ ⊢ V{ x → s} M3 ∈ δ >$) by exact (IHM3 _ _ H _ H4).
   simpl.
   exact (typ_rel_if _ _ _ _ _ _ H5 H6 H7).
 
@@ -1331,19 +1331,19 @@ Proof with eauto with sys_f_base.
 
   (* SUCCESSOR *)
   destruct (itr_succ _ _ _ _ H0).
-  assert ($< Γ - Δ ⊢ V{ x → s} M ∈ Nat >$) by exact (IHM _ _ H H1 _ H2).
+  assert ($< Γ - Δ ⊢ V{ x → s} M ∈ Nat >$) by exact (IHM _ _ H _ H2).
   simpl;rewrite H3.
   exact (typ_rel_succ _ _ _ H4).
 
   (* PREDECESSOR *)
   destruct (itr_pred _ _ _ _ H0).
-  assert ($< Γ - Δ ⊢ V{ x → s} M ∈ Nat >$) by exact (IHM _ _ H H1 _ H2).
+  assert ($< Γ - Δ ⊢ V{ x → s} M ∈ Nat >$) by exact (IHM _ _ H _ H2).
   simpl;rewrite H3.
   exact (typ_rel_pred _ _ _ H4).
 
   (* ZERO PREDICATE *)
   destruct (itr_iszero _ _ _ _ H0).
-  assert ($< Γ - Δ ⊢ V{ x → s} M ∈ Nat >$) by exact (IHM _ _ H H1 _ H2).
+  assert ($< Γ - Δ ⊢ V{ x → s} M ∈ Nat >$) by exact (IHM _ _ H _ H2).
   simpl;rewrite H3.
   exact (typ_rel_iszero _ _ _ H4).
 Qed.
@@ -1686,13 +1686,14 @@ Qed.
 ***************************PRESERVATION******************************
 *********************************************************************
 =====================================================================*)
-Theorem sys_f_preservation : forall (Δ:ctxT)(σ:typ)(M N:trm),
-                            $<nilV - Δ ⊢ M ∈ σ>$ ->
-                            $<M →β N>$ -> $<nilV - Δ ⊢ N ∈ σ>$.
+Theorem sys_f_preservation : forall (σ:typ)(M N:trm),
+                            $<nilV - nilT ⊢ M ∈ σ>$ ->
+                            $<M →β N>$ -> $<nilV - nilT ⊢ N ∈ σ>$.
 Proof.
   intros.
   generalize dependent N.
-  dependent induction H;fold ctx_nilV in *;intros; pose proof (eq_refl $<nilV>$);try solve [inversion H0 + inversion H1].
+  dependent induction H;fold ctx_nilV ctx_nilT in *;
+  intros; pose proof (eq_refl $<nilV>$);pose proof (eq_refl $<nilV>$)try solve [inversion H0 + inversion H1].
 
   inversion H1.
   rewrite <- H4 in H.
