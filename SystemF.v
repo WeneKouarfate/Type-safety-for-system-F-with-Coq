@@ -1,3 +1,5 @@
+Module Export SystemF.
+
 Require Import String.
 Require Import Arith.
 Require Import Relations.
@@ -170,8 +172,9 @@ Reserved Notation "t1 '→β' t2" (in custom sys_f at level 40).
 
 Inductive one_step_red : trm -> trm -> Prop :=
   (* term redexes*)
-  | red_V_redex : forall (x:string)(M N:trm)(X:typ),
-      $<(λ x : X,M) N →β (V{x → N} M)>$
+  | red_V_redex : forall (x:string)(M v:trm)(X:typ),
+      (val v) ->
+      $<(λ x : X,M) v →β (V{x → v} M)>$
   | red_appV1 : forall (M M' N:trm),
        $<M →β M'>$ -> $<(M N) →β (M' N)>$
   | red_appV2 : forall (v M M':trm),
@@ -196,13 +199,13 @@ Inductive one_step_red : trm -> trm -> Prop :=
   (* Predecessor *)
   | red_pred_z : $<P 0 →β 0>$
   | red_pred_succ : forall (v:trm),
-      val v -> $<P (S v) →β v>$
+      (value_nat v) -> $<P (S v) →β v>$
   | red_pred : forall (M M':trm),
       $<M →β M'>$ -> $<(P M) →β (P M')>$
   (* Zero predicate *)
   | red_iszero_z : $<(Z 0) →β true>$
   | red_iszero_succ : forall (v:trm),
-      val v -> $<(Z (S v)) →β false>$
+      (value_nat v) -> $<(Z (S v)) →β false>$
   | red_iszero : forall (M M':trm),
       $<M →β M'>$ -> $<(Z M) →β (Z M')>$
 where "t1 '→β' t2" := (one_step_red t1 t2)(in custom sys_f).
@@ -801,15 +804,21 @@ Proof with eauto with sys_f_base.
   right.
   assert ($< nilV >$ = $< nilV >$) by easy.
   assert ($< nilT >$ = $< nilT >$) by easy.
-  assert (val M \/ (exists N : trm, $< M →β N >$)) by exact (IHtyp_rel1 H1 H2).
+  pose proof (IHtyp_rel1 H1 H2).
+  pose proof (IHtyp_rel2 H1 H2).
   clear H1 H2.
   destruct H3.
     assert (exists (x : string) (N : trm),
          $< (x; σ V:: nilV) - nilT ⊢ N ∈ δ >$ /\ M = $< λ x : σ, N >$) by exact (can_absV_empty _ _ _ H1 H).
     destruct H2;destruct H2;destruct H2.
-    assert ($< (λ x : σ, x0) N →β V{ x → N} x0 >$) by exact (red_V_redex x x0 N σ).
-    rewrite <- H3 in H4.
-    exists ($<V{ x → N} x0 >$);easy.
+    destruct H4.
+      pose proof (red_V_redex x x0 N σ H4).
+      rewrite  H3.
+      exists ($<V{ x → N} x0 >$);easy.
+ 
+      destruct H4.
+      pose proof (red_appV2 _ _ _ H1 H4).
+      exists $<M x1>$;easy.
 
     destruct H1.
     assert $< M N →β x N >$ by exact (red_appV1 _ _ N H1).
@@ -1693,49 +1702,50 @@ Proof.
   intros.
   generalize dependent N.
   dependent induction H;fold ctx_nilV ctx_nilT in *;
-  intros; pose proof (eq_refl $<nilV>$);pose proof (eq_refl $<nilV>$)try solve [inversion H0 + inversion H1].
+  intros; pose proof (eq_refl $<nilV>$);pose proof (eq_refl $<nilT>$);try solve [inversion H0 + inversion H1].
 
   inversion H1.
-  rewrite <- H4 in H.
-  inversion H.
-  pose proof (sys_f_var_conv_absV _ _ _ _ _ _ H).
-  rewrite H10 in H13.
-  apply substitutionV with (σ:=σ);easy.
+    rewrite <- H4 in H.
+    inversion H.
+      pose proof (sys_f_var_conv_absV _ _ _ _ _ _ H).
+      rewrite H12 in H15.
+      apply substitutionV with (σ:=σ);easy.
 
-  pose proof (IHtyp_rel1 H2 _ H6).
-  apply typ_rel_arr_e with (σ:=σ);easy.
+      pose proof (IHtyp_rel1 H2 H3 _ H7).
+      apply typ_rel_arr_e with (σ:=σ);easy.
 
-  pose proof (IHtyp_rel2 H2 _ H7).
-  apply typ_rel_arr_e with (σ:=σ);easy.
+    pose proof (IHtyp_rel2 H2 H3 _ H8).
+    apply typ_rel_arr_e with (σ:=σ);easy.
 
   inversion H1.
-  rewrite <- H4 in H0;inversion H0.
-  exact (substitutionT $<nilV>$ Δ M0 σ δ α H H7).
+  rewrite <- H5 in H0;inversion H0.
+  exact (substitutionT $<nilV>$ $<nilT>$ M0 σ δ α H H8).
 
-  pose proof (IHtyp_rel H2 _ H6).
+  pose proof (IHtyp_rel H2 H3 _ H7).
   apply typ_rel_all_e;easy.
 
   inversion H2.
+    rewrite <- H5;easy.
 
-  rewrite H4 in H0;easy.
+    rewrite <- H5;easy.
 
-  rewrite H4 in H1;easy.
-
-
-  pose proof (IHtyp_rel1 H3 _ H8).
-  apply typ_rel_if;easy.
+    pose proof (IHtyp_rel1 H3 H4 _ H9).
+    apply typ_rel_if;easy.
 
   inversion H0.
-  pose proof (IHtyp_rel H1 _ H3).
+  pose proof (IHtyp_rel H1 H2 _ H4).
   apply typ_rel_succ;easy.
 
-  inversion H0;try solve [eauto using typ_rel].
-    
+  inversion H0.
+    rewrite <- H3, H4 in H0;try solve [eauto using typ_rel].
 
-    rewrite <- H2 in H.
+    inversion H0;rewrite <- H3, H5 in H0;try solve [eauto using typ_rel].
+
+    rewrite <- H3 in H.
     inversion H.
-    rewrite <- H4.
-    easy.
+    rewrite <- H5;easy.
+
+  inversion H0; try solve [eauto using typ_rel].
 
   inversion H0; try solve [eauto using typ_rel].  
 Qed.
