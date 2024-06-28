@@ -1,6 +1,10 @@
 \documentclass{article}
 \setcounter{tocdepth}{2}
 
+\newcounter{example}[section]
+\newenvironment{example}[1][]{\refstepcounter{example}\par\medskip
+   \noindent \textbf{Example~\theexample. #1} \rmfamily}{\medskip}
+
 
 \usepackage{amsmath}
 \usepackage{amsthm}
@@ -18,6 +22,7 @@
 \newtheorem{corollary}{Corollary}[theorem]
 \newtheorem{lemma}[theorem]{Lemma}
 \newtheorem*{remark}{Remark}
+
 %%\theoremstyle{definition}
 \newtheorem{definition}{Definition}[section]
 
@@ -45,9 +50,14 @@
 \newpage
 
 \section{Introduction}
-The development of modern programming languages is accompanied by the need to guarantee the security of the programs, particularly in terms of typing. However, the increasing complexity of type systems makes the use of formal methods to ensure their correction imperative. In this context, the main objective of this bachelor's work is to explore and implement a proof in Coq of the safety of the System F typing system. This work is a practical introduction to the formalization of type systems and the methodology of proofs assisted by computers while deepening an understanding of the fundamentals of type theory in programming.\par
-We will consider a formal system and some of its extensions as our abstract functional programming language to get rid of technical and implementation details. This formal system is the lambda calculus invented in the 1930s by Alonzo church. Our programs will be expressions of the corresponding formal language and their execution will be expressed as computation processes until they result in something equivalent to a program output.\\
-$\lambda$-calculus is also the main studying material for the second big concept of our work: proof assisted by computers. We will discover that proof-related stuff remains on the insusceptible robust concept of terms of our language as proofs and types of our expressions as propositions (also known as the Curry-Howard isomorphism or the Curry-Howard correspondence). It establishes a duality among the $\lambda$-calculi type systems and logical systems such as first-order or second-order propositional logic. More intuitively, it allows the use of programs and their type systems equivalently to proofs and assertions.\par
+
+Modern programming languages need to ensure program security, especially regarding typing. As type systems become more complex, formal methods are essential for their verification. This bachelor’s work aims to use Coq to prove the safety of the System F typing system. It serves as a practical introduction to type systems formalization and computer-assisted proof methods while enhancing understanding of type theory in programming.
+
+We will use a formal system, the $\lambda$ calculus, and its extensions as our abstract programming language. This approach eliminates technical and implementation details. Our programs will be expressions in this language, and their execution will be computation processes until they yield an output.
+
+The lambda calculus is also central to our second major topic: computer-assisted proofs. We will find that the terms of our language can serve as proofs, and their types as propositions. This is known as the Curry-Howard isomorphism. It creates a duality between the lambda calculus type systems and logical systems like propositional logic. Simply put, it allows us to use programs and their type systems in the same way as proofs and assertions.
+
+\par
 \footnote{The Coq implementation of the following work can be found at \url{https://gitlab.unige.ch/Wene.Kouarfate/type-safety-for-system-f-with-Coq}}
 
 \section{State of the art}
@@ -58,17 +68,17 @@ We will genuinely start with one of the simplest forms of the $\lambda$-calculus
         V &::= x \ | \ y \ | \ z \ | \ ... \\
         \Lambda &::= V \ | \ \lambda V.\Lambda \ | \ (\Lambda \Lambda)
     \end{align*}
-    $\lambda$-terms can respectively be variables, abstraction of terms into a function and application of those functions to any $\lambda$-terms. Applications are left-associative and abstractions are right-associative.
+    $\lambda$-terms can respectively be variables, abstraction of terms into a function and application of one term to another $\lambda$-terms. Applications are left-associative and abstractions are right-associative.
 
-    \subsubsection{Substitutions}\label{Free variables}
-    A variable is bounded to an abstraction $\lambda x.M$ if it corresponds to the formal variable $x$ used to capture the argument or else it is free in that term. The definition is recursively extended to $\Lambda$ as the function $FV : \Lambda\rightarrow \mathscr{P}(V)$
-    \begin{align*}
+    \subsubsection{Substitutions}\label{Bound and free variables}
+    A variable is bounded to an abstraction $\lambda x.M$ if it corresponds to the formal variable $x$ used to capture the argument. Bound variables can be seen as placeholders and substituting them does not change the sens of the term e.g $\lambda x:x$ and $\lambda y.y$ does the same thing. Free variables are those that are not bound in a term. They correspond in a subprogram to constants and may be subject to renaming via substitution.Their definition is recursively extended to $\Lambda$ as the function $FV : \Lambda\rightarrow \mathscr{P}(V)$
+    \label{fv}\begin{align*}
         x\in V \Rightarrow FV(x) &= \{x\}\\
         x\in V, M\in\Lambda \Rightarrow FV(\lambda x.M) &= FV(M) \setminus \{x\} \\
         M,N\in\Lambda \Rightarrow FV((M N)) &= FV(M)\cup FV(N)
     \end{align*}
 
-    'Naive' substitution of a variable $x$ by a term $N$ in another term $M$ (annotated $M[x:=N]$) consists of replacing all free occurrences of $x$ in $M$ by $N$.\par The problem with this is illustrated by \textit{variable capture} happening when a variable that is free in $N$ ends up being bound in $M[x:=N]$. It feels like breaking the semantic of the $\lambda$-calculus regarding the following example : substituting $y$ to $x$  in $\lambda x.x y$ ruins the argument capture property :
+     Naive substitution of a variable $x$ by a term $N$ in another term $M$ (annotated $M[x:=N]$) consists of replacing all free occurrences of $x$ in $M$ by $N$.\par The problem with this is illustrated by \textit{variable capture} happening when a variable that is free in $N$ ends up being bound in $M[x:=N]$. It feels like breaking the semantic of the $\lambda$-calculus regarding the following example : substituting $y$ to $x$  in $\lambda x.x y$ ruins the argument capture property :
     $$((\lambda x.x y)[y := x])N \text{ is } (\lambda x.x x)N \ \text{results in} \ (N N)$$ while the same operation with $z, z', ...$ results in $(N z), (N z'), ...$\\
     Formally :
     \label{simple substitution}\begin{align*}
@@ -78,12 +88,12 @@ We will genuinely start with one of the simplest forms of the $\lambda$-calculus
             (\lambda y.M)[x:=N] &\equiv \lambda y.M[x:=N]  (x\neq y,y\not\in FV(N)) \\
             (M_1 M_2)[x:=N] &\equiv (M_1[x:=N])(M_1[x:=N])
         \end{align*}
-        For the rest of the work, we will assume that variables are always chosen so that all bound variables of terms involved in substitution are chosen to be different from free ones. A convenient way to avoid variable capture troubles.
+        For the rest of the work, we will assume that variables are always chosen so that all bound variables of terms involved in substitution are chosen to be different from free ones. This convenient way to avoid variable capture troubles is called the variable convention or the Barendregt \cite{10.5555/162552.162561} convention and will play a central role in further proofs.
     \subsubsection{Reduction}
     \begin{align*}
         (\lambda x.M) N \rightarrow_{\beta} M[x:=N]
     \end{align*}
-    Reduction featuring the so-called $\beta$-redexes (The application of an abstraction $\lambda x.M$ to another term $N$) is the core concept of the $\lambda$-calculus as an abstract programming language, it introduces the idea of execution. Abstraction can be seen as programs waiting for arguments, with their bounded variables as formal parameters. It is replaced by the execution parameter and the evaluation can keep going into the substituted body.
+    Reduction featuring the so-called $\beta$-redexes (The application of an abstraction $\lambda x.M$ to another term $N$) and corresponding reduction is the core concept of the $\lambda$-calculus as an abstract programming language, it introduces the idea of execution. Abstraction can be seen as programs waiting for arguments, with their bounded variables as formal parameters. It is replaced by the execution parameter and the evaluation can keep going into the substituted body.
 
 \subsection{Simply typed lambda calculus}
     %%(IMPREDICATIVITY AND THE ENCODING OF RUSSEL'S PARADOX)
@@ -126,9 +136,9 @@ We will genuinely start with one of the simplest forms of the $\lambda$-calculus
         B &=\texttt{Bool} \ | \ \texttt{Nat} \ | \ ... \tag{base types}\\
         T &= B \ | \ T\rightarrow T \ | \ \forall V_T.T \tag{types}
     \end{align}
-    Types can be made out of base types, arrow types and quantification of type variables out of other types and we are now able in our programs to abstract type variables $\alpha$ out of terms $M$ (annotated $\lambda \alpha.M$)
+    Types can be made out of base types, arrow types, and quantification of type variables out of other types and we are now able in our programs to abstract type variables $\alpha$ out of terms $M$ (annotated $\lambda \alpha.M$)
     \\\\
-    For example $\texttt{Id}\equiv(\lambda \alpha . \lambda x: \alpha.x)$ is an abstraction of the type variable $\alpha$ out of a classical identity function $\lambda x.x$. While applied to a type, i.e. $\texttt{Id[Nat]} \rightarrow_\beta \lambda x: \texttt{Nat}.x$,
+    For example $\texttt{Id}\equiv(\lambda \alpha . \lambda x: \alpha.x)$ is an abstraction of the type variable $\alpha$ out of a classical identity function $\lambda x.x$. When applied to a type, e.g. $\texttt{Id[Nat]} \rightarrow_\beta \lambda x: \texttt{Nat}.x$,
      it results in the identity function for elements of those types. The type-checker will derive types of those abstractions or applications of types according to the following rules :
 
     \begin{mathpar}
@@ -141,7 +151,8 @@ We will genuinely start with one of the simplest forms of the $\lambda$-calculus
         {\Gamma \vdash M[\sigma_2] : \sigma_1[\alpha:=\sigma_2]}
     \end{mathpar}
 
-    e.g \begin{prooftree}
+    \begin{example}
+        \begin{prooftree}
             \AxiomC{$x \in(\alpha;(x:\alpha))$}
             \AxiomC{$\alpha\not\in FV(\alpha;(x:\alpha))$}
             \RightLabel{Var}
@@ -153,6 +164,7 @@ We will genuinely start with one of the simplest forms of the $\lambda$-calculus
             \RightLabel{$\forall$E}
             \UnaryInfC{$\vdash (\lambda \alpha . \lambda x: \alpha.x)\texttt{[Nat]} : (\forall\alpha.\alpha\rightarrow\alpha)[\alpha := \texttt{Nat}]$}
         \end{prooftree}
+    \end{example}
 
 
     
@@ -160,11 +172,11 @@ We will genuinely start with one of the simplest forms of the $\lambda$-calculus
     \subsection{The Coq proof assistant}
     Coq as a software is built upon a functional language called Gallina. The language has a common syntax similar to those of the ML family as OCaml and will not be formally presented (for more information please refer to \cite{Coq}).
         \subsubsection{Prior}
-        We approach in the following points some of the theoretical foundations (among many others)  of the system Coq that we found necessary to the comprehension of everything that would be implemented in them.
+        We approach in the following points some of the theoretical foundations (among many others)  of the system Coq that we found necessary to the comprehension of everything that would be implemented.
 
         \begin{itemize}
-            \item \textbf{Constructive logic}: a variant of the classical logic that rejects the rule of excluded middle tierce ($\Gamma\vdash A \wedge \neg A$) or equivalent deduction schema such as the double negation elimination ($\Gamma\vdash \neg\neg A \Longleftrightarrow A$). These principles would allow non-constructive existential proofs: proofs of the existence of a mathematical object that could not provide a way to find such an object \footnote{Such as a proof that there exist two irrational numbers $a$ and $b$ such that $a^b$ is rational without providing a pair of $a$ and $b$ nor an algorithm to approach them (or without knowing if $a$ and $b$ can be either $\sqrt{2}$ and $\sqrt{2}$ or $\sqrt{2}^{\sqrt{2}}$ and $\sqrt{2}$)}
-            \footnote{Not like Cantor's proof that there exists at least one number of the interval $[0,1]$ that could not fit in any tentative of branching that interval in a one-to-one correspondence with the set of natural numbers by providing a systematic construction of such number: the diagonal method}.
+            \item \textbf{Constructive logic}\label{constructive logic}: a variant of the classical logic that rejects the rule of excluded middle tierce ($\Gamma\vdash A \wedge \neg A$) or equivalent deduction schema such as the double negation elimination ($\Gamma\vdash \neg\neg A \Longleftrightarrow A$). These principles would allow non-constructive existential proofs: proofs of the existence of a mathematical object that could not provide a way to find such an object \footnote{Such as a proof that there exist two irrational numbers $a$ and $b$ such that $a^b$ is rational without providing a pair of $a$ and $b$ nor an algorithm to approach them (or without knowing if $a$ and $b$ can be either $\sqrt{2}$ and $\sqrt{2}$ or $\sqrt{2}^{\sqrt{2}}$ and $\sqrt{2}$)}
+            \footnote{Not like Cantor's diagonal method that constructs for any sequence of numbers in the interval $[0,1]$ a real number that could not fit a one-to-one correspondence with the set of natural numbers, proving its non-countability.}.
             Constructive proofs of existence can automatically be derived into an algorithm for building such objects via the next point :
             
             \item \textbf{The Curry-Howard isomorphism}: (CHI) A one-to-one correspondence between types with their inhabitants (expressions of that type) and logical assertions with their proofs. Let us compare derivation and proof trees :
@@ -200,7 +212,7 @@ We will genuinely start with one of the simplest forms of the $\lambda$-calculus
     \BinaryInfC{$A \vdash B \Rightarrow A$}
 \end{prooftree}
 The latter has the same structure as the former but with terms erased out (plus replacing $\rightarrow$ by $\Rightarrow$)
-            . Coq uses this property notably to extract verified programs out of correctness proofs. In Coq, \texttt{Set} is the sort of program's type and \texttt{Prop} is the sort of assertions (The type of proposition which are the types of their proofs). They are themselves of type \texttt{Type}
+            . Coq uses this property notably to extract verified programs out of correctness proofs. In Coq, \texttt{Set} is the sort of program's type and \texttt{Prop} is the sort of assertions (The type of proposition which are themselves types of their proofs). \texttt{Prop} and \texttt{Set} are themselves of type \texttt{Type}
             
             \item \textbf{The (inductive) calculus of constrution}: the CHI establishes a parallel among extensions of the $\lambda$-calculus type system and extensions built upon its corresponding logical system: the minimal propositional logic\footnote{These systems are generally minimal with only the $\Rightarrow$ and $\forall$ operators}. Barendregt presents these extensions in \cite{10.5555/162552.162561} among three axes :
                 \begin{itemize}
@@ -208,18 +220,18 @@ The latter has the same structure as the former but with terms erased out (plus 
                     \begin{verbatim}Inductive list (A : Set) :=
     | nil : list A 
     | cons : A -> list A -> list A.\end{verbatim}
-                     Expressions of that type can be made by two constructors that are declared with their types.  : 
+                     Expressions of that type can be made by two constructors that are declared with their types.
                     
                     \item Dependent types: types parametrized by terms. They correspond to the predicate logic which features the quantification of individual variables over predicates. Dependent types are a powerful expressive tool frequently used in inductive definitions to parameterize (or quantify since Coq uses the keyword \texttt{forall}) the types of some constructors by variables followed by one or more assertions on them. Example of a list of natural numbers lower or equal to $4$
                      \begin{verbatim}Inductive list4 :=
     | nil4 : list4 
     | cons4 : forall (n : nat), (n <= 4) -> list4 -> list4.\end{verbatim}
-                    To build such a list using the second constructor, it must provide not only a natural number but also an expression of type \texttt{n $\leq$ 4}: a proof that the number is lower or equal to $4$. Another example of dependent type can be found on the way to build such a proof expression, by applying theorems as simple functions :
+                    To build such a list using the second constructor, it must be provided not only a natural number but also an expression of type \texttt{n $\leq$ 4}: a proof that the number is lower or equal to $4$. Another example of dependent type can be found on the way to build such a proof expression, by applying theorems as simple functions :
                     \begin{verbatim}
 le_S : forall (n m : nat), (n <= m) -> (n <= S m)
 le_n : forall (n : nat), n <= n
                     \end{verbatim}
-                    They can be cleverly applied to numbers to obtain the following term and its type: \verb| (le_S 2 3 (le_S 2 2 (le_n 2))) : 2 <= 4|
+                    They can be cleverly applied to numbers to obtain the following term and its type: \verb| (le_S 2 3 (le_S 2 2 (le_n 2))): 2 <= 4|
 
                     \item Type operators: functions of types into types. It corresponds to higher-order propositional logic. For example, let us alternatively build the (\texttt{Set}) type of lists of natural numbers lower or equal to $4$ by first defining a dedicated type and then providing it as the \texttt{A} type parameter to \texttt{list}:
                     \begin{verbatim}Inductive nat_leq_4 : Set :=
@@ -227,7 +239,7 @@ le_n : forall (n : nat), n <= n
 
 Definition list4len := list nat_leq_4.\end{verbatim}
 
-                    \item The calculus of construction: Barendregt presents those extensions as moving along one of a cube axes where the simply typed lambda calculus is the origin: the lambda cube. The CoC\footnote{A clue on the origin of why Coq is called Coq!} is simply the diagonal move on this cube for the origin to its opposite point which can be seen as moving on the three axes.
+                    \item The calculus of construction (CoC): Barendregt presents each one of those extensions as moving along one of a cube axes where the simply typed lambda calculus is the origin: the lambda cube. The CoC\footnote{A clue on the origin of why Coq is called Coq!} is simply the diagonal move on this cube for the origin to its opposite point which can be seen as moving on the three axes. The calculus of inductive construction extends CoC notably with inductive types.
                     
                 \end{itemize}
         \end{itemize}
@@ -235,10 +247,10 @@ Definition list4len := list nat_leq_4.\end{verbatim}
         \subsubsection{Commands}
         Coq organizes the execution flow of programs through a wide range of commands (keywords starting with uppercase whose statements end with a dot). Results are printed in a dedicated panel. Let us review the most common and useful ones in our further implementations :
         \begin{itemize}
-            \item \texttt{Check} : type-checks its argument. Any expression manipulated by Coq has its type prealably derivated. This also holds for functions, inductive definitions, or even theorems. \texttt{Print} prints the definition of an object if available\footnote{The object is said to be transparent (like proved theorems or data-type or else it is opaque (like axioms or admitted assumptions)} including its type and \texttt{Compute} also reduce it (more on that in \ref{Tactics}). E.g. the Peano arithmetic style implementation of natural numbers in Coq :
+            \item \texttt{Check} : type-checks its argument. Any expression manipulated by Coq has its type prealably derivated. This also holds for functions, inductive definitions, or even theorems. \texttt{Print} prints the definition of an object if available\footnote{The object is said to be transparent or else it is opaque} including its type and \texttt{Compute} also reduce it (more on that in \ref{Tactics}). E.g. the Peano arithmetic style implementation of natural numbers in Coq :
             \begin{verbatim} Print nat.
 Inductive nat : Set :=  O : nat | S : nat -> nat. \end{verbatim}
-            \item  \texttt{Inductive} : define inductive types via constructors and their signature. Coq automatically generates induction principles that can be used to prove properties by induction about those types e.g. \texttt{list4}.
+            \item  \texttt{Inductive}: define inductive types via constructors and their signature. Coq automatically generates induction principles that can be used to prove properties by induction about those types e.g. \texttt{list4}.
             The \texttt{Fixpoint} command defines recursive functions about inductive definitions using \texttt{match} construct to capture their recursive structure :
             \begin{verbatim}
 Fixpoint list4len (l : list4) :=
@@ -254,18 +266,19 @@ end).\end{verbatim}
 
             \item \texttt{Notation} : defines custom notations. \verb|Notation "A /\ B" := (and A B).|
 
-            \item \texttt{Theorem, Lemma, Corollary ...} equivalent commands that start a proof. They take the assertion as an argument and switch into proof mode.\texttt{Proof} and \texttt{Qed} starts and stops the body of the demonstration\footnote{More than visual delimitations of proofs in a script, the former can be used to provide general directives for the whole proof like theorem databases for automated proof and the later try to build the proof term from the interactive proof.}.It assists in interactively building proofs using tactics which can be seen as proof reasoning patterns like \textit{modus ponens}, by induction or by contradiction ...\par Let us begin by presenting the proof state: a set of yet unproven goals. A goal consists of a conclusion and its local context separated by a line. The conclusion is the current to-be-proven statement. The local context is made out of direct variables involved in the proofs, stated with their type. They could be variable with their type (of sort \texttt{Set}) or hypotheses as terms of the type of the asserted assumptions (of sort \texttt{Prop}). The following example shows a \texttt{Theorem} statement entering proof mode and presenting the proof state. It is about the sum of elements in a \texttt{list4} being lower or equal to four times its length.
+            \item \texttt{Theorem, Lemma, Corollary ...} equivalent commands that start a proof. They take the assertion as an argument and switch into proof mode.\texttt{Proof} and \texttt{Qed} starts and stops the body of the demonstration\footnote{More than visual delimitations of proofs in a script, the former can be used to provide general directives for the whole proof like theorem databases for automated proof and the later try to build the proof term from the interactive proof.}.It assists in interactively building proofs using tactics which can be seen asdeduction patterns like \textit{modus ponens}, by induction or by contradiction ...\par Let us begin by presenting the proof state: a set of yet unproven goals. A goal consists of a conclusion and its local context separated by a line. The conclusion is the current to-be-proven statement. The local context is made out of direct variables involved in the proofs, stated with their type. They could be variable with their type (of sort \texttt{Set}) or hypotheses as terms of the type of the asserted assumptions (of sort \texttt{Prop}). The following example shows a \texttt{Theorem} statement entering proof mode and presenting the proof state. It is about the sum of elements in a \texttt{list4} being lower or equal to four times its length.
             \begin{verbatim}Theorem list4sum_le_list4len_mul_4 : 
         forall (l:list4), (list4sum l) <= 4 * (list4len l).
 1 goal
   ============================
-  forall l : list4, list4sum l <= 4 * list4len l\end{verbatim}
+  forall l : list4, list4sum l <= 4 * list4len l
+Proof.\end{verbatim}
             
         \end{itemize}
         \subsubsection{Tactics}\label{Tactics}
-        Tactics can generate subgoals: to prove the current conclusion, one applies a tactic that transforms it into one or more (simpler) subgoals that have to be proven and so on until there remains none. They can be combined with the semicolon operator (\texttt{tactic1;tactic2}) : the latter tactic is applied to the subgoals generated by the former.
+        Tactics can generate subgoals: to prove the current conclusion, one applies a tactic that transforms it into one or more (simpler) subgoals that have to be proven and so on until there remains none. They can be combined with the semicolon operator (\texttt{tactic1;tactic2}): the latter tactic is applied to the subgoals generated by the former.
         \begin{itemize}
-            \item \texttt{intros} : introduce the leftmost parts of an implication as hypotheses and also quantified variables as defined in the context. It corresponds to the inference rule that prove implications: to show that \texttt{A} implies \texttt{B}, prove the latter under the hypothesis of the former. The same holds for the $\forall$ introduction rule : you have to prove the quantified proposition with the variable added to the context. 
+            \item \texttt{intros}: introduce the leftmost parts of an implication as hypotheses and also quantified variables as defined in the context. It corresponds to the inference rule that proves implications: to show that \texttt{A} implies \texttt{B}, prove the latter under the hypothesis of the former. The same holds for the $\forall$ introduction rule: you have to prove the quantified proposition with the variable added to the context. 
             \begin{verbatim}intros l.
   l : list4
   ============================
@@ -279,7 +292,7 @@ goal 2 is:
  list4sum (cons4 n l l0) <= 4 * list4len (cons4 n l l0)\end{verbatim}
             You also have a \texttt{destruct} tactic that does not generate induction hypothesis and \texttt{inversion} that directly solves self-contradictory subgoals.
             
-            \item \texttt{simpl} : performs a 'light' normalization. It results in a simplest form of the expression making it eligible for other tactics.
+            \item \texttt{simpl} : performs a 'light' normalization. It results in a simpler form of the expression making it eligible for other tactics.
             \begin{verbatim}simpl.
   ============================
   0 <= 0\end{verbatim}
@@ -293,7 +306,7 @@ goal 2 is:
   IHl : list4sum l0 <= 4 * list4len l0
   ============================
   list4sum (cons4 n l l0) <= 4 * list4len (cons4 n l l0)\end{verbatim}
-             Similar tactics such as \texttt{trivial} (resolves goals that correspond to an accessible lemma), \texttt{contradiction} (solve the current goal by finding contradiction in the conclusion and hypotheses) \texttt{inversion} \footnote{Or also \texttt{symmetry}} with \texttt{reflexivity} are all attempted with the \texttt{easy} tactic.
+             Similar tactics such as \texttt{trivial} (resolves goals that correspond to an accessible lemma), \texttt{contradiction} (solve the current goal by finding contradiction in the conclusion and hypotheses)  \footnote{\texttt{inversion} or also \texttt{symmetry}} with \texttt{reflexivity} are all attempted with the \texttt{easy} tactic.
 
             \item \texttt{cbv} : call-by-value-oriented conversion\footnote{Also \texttt{lazy} for call-by-need or \texttt{cbn} for call-by-name.\texttt{hnf} for weak-head normal form}. Conversion rules check if two terms are convertible i.e. if they both convert to normal forms that are syntactically equal. \texttt{simpl} is another conversion tactic that aims for more readable results by unfolding only constants that lead to 'simplification'.
             \par Briefly we have $\alpha$-equivalence for syntactic equality modulo bound variables, $\beta$-reduction of $\beta$-redexes, $\delta$-reduction replacing context variables by their values, $\iota$-reduction of inductive objects (\texttt{match, fix,...}) , $\zeta$-reduction of \texttt{let ... in ...} definition and $\eta$-expansion of term $M : (\forall x : T,U)$ by $\lambda x : T.(M x)$. For more details please refer to \cite{Coq}. They can parameterize the conversion tactic :
@@ -325,20 +338,20 @@ goal 2 is:
 
 easy.
 easy.
-(* Or simply : apply Nat.add_le_mono;easy. *)
+(* Or simply: apply Nat.add_le_mono;easy. *)
 No more goals.
 Qed. \end{verbatim}
         \end{itemize}
         
 \section{The theory and its implementation}
-    Let us define and implement a more concrete functional language in Coq and work on it. This language is expected to have the $\lambda$2 property we want to prove and study but also usual programming language primitives like naturals, booleans, zero-predicate, and if-then-else statements to exemplify the 'concreteness' of our language.
+    Let us define and implement a more concrete functional language in Coq and work on it. This language is expected to have the $\lambda$2 property we want to prove and study but also usual programming language primitives like naturals, booleans, zero-predicate, and if-then-else statements.
     
     \subsection{Syntax}\label{syntax}
-    Let $\Lambda,  V$, and $T$ respectively be the smallest Sets of terms, types and values defined by :
+    Let $\Lambda,  V$, and $T$ respectively be the smallest Sets of terms, values and typesdefined by :
     \begin{align}
         \Lambda := x \tag{variable}\\     
       &|\ \lambda x : T.\Lambda \tag{term abstraction}\\
-      &|\ \lambda V.\Lambda \tag{type abstraction}\\
+      &|\ \lambda \alpha.\Lambda \tag{type abstraction}\\
       &|\ (\Lambda \ \Lambda) \tag{term application}\\
       &|\ \Lambda[ T ] \tag{type application}\\
       &|\ true \tag{true}\\
@@ -352,7 +365,7 @@ Qed. \end{verbatim}
 
     \begin{align}
         V :=  \lambda x : T.\Lambda \tag{term abstraction}\\
-    &|\ \lambda V.\Lambda \tag{type abstraction}\\
+    &|\ \lambda \alpha.\Lambda \tag{type abstraction}\\
     &|\ true \tag{Boolean value : true}\\
     &|\ false \tag{Boolean value : false}\\
     &|\ 0 \tag{Natural value : Zero}\\
@@ -360,7 +373,7 @@ Qed. \end{verbatim}
     \end{align}
 
     \begin{align}
-        T &:= \alpha \ | \ \mu \ | \  ... \tag{Type variables}\\
+        T &:= \alpha  \tag{Type variables}\\
         &| \ \texttt{Bool} \ | \ \texttt{Nat} \tag{Base types} \\
         &| \ T\rightarrow T \tag{Arrow types}\\
         &| \ \forall \alpha.T \tag{Quantified types}
@@ -373,16 +386,17 @@ We can exemplify the types implementation by:\begin{verbatim}
   | typ_arrow : typ -> typ -> typ
   | typ_all : nat -> typ -> typ.
 \end{verbatim}
-Thanks to the Notation command, the implementation uses a user-defined, friendly syntax close to the one defined previously that we will be alternatively using or mixing in definitions with classical theoretical notations.
+Thanks to the \texttt{Notation} command, the implementation uses a user-defined, friendly syntax close to the one defined previously that we will be alternatively using or mixing in definitions with classical theoretical notations.
+\par Another more technical comment is about our choice to represent type variables with the Coq's native  \texttt{nat} type as we also implement term variables using Coq \texttt{string} type. This convenient choice to choose Coq datatypes and to better differentiate types and term variables will also have its importance in further proofs on those variables that will be at the machine level on those datatypes.
 
     \subsection{Substitutions}
-    First, let us extend the definitions at \ref{simple substitution} to our fully defined language exemplifying our implementation here :\\
+    First, let us extend the definitions at \ref{simple substitution} to our fully defined language exemplifying our implementation here:\\
     \label{substitution1}\texttt{
 Fixpoint sub\_trm ($x$:string)($s$ $t$:trm) {struct $t$}: trm := match t with\\
   | $y$ => if $x \equiv y$ then $s$ else $t$\\
   | $\lambda y : T . t1$ =>
-        if $x\equiv y$ then $t$ else $\lambda y : T , (t1[x\rightarrow s])$\\
-  | $\lambda k. t_1$ =>  $\lambda k, (t1[x\rightarrow s])$\\
+        if $x\equiv y$ then $t$ else $\lambda y : T.(t1[x\rightarrow s])$\\
+  | $\lambda k. t_1$ =>  $\lambda k. (t1[x\rightarrow s])$\\
   | $t_1 \ t_2$ =>  $(t_1[x\rightarrow s]) (t_2 [x\rightarrow s])$\\
   | $t_1 [ T ]$ => $(t1[x\rightarrow s]) [ T ]$\\
   | $true$ => $true$\\
@@ -397,7 +411,7 @@ end
 }
 
     
-    Substitution is fundamental to both $\beta$-reduction and typing which represent the execution and the related type-checking of our programs. Moving from simple $\lambda$-calculus to its polymorphic form brings a new concept to the table to consider: types as concrete constructions that can be manipulated almost the same as terms. They can be abstracted and applied to lambda terms and then need their proper substitutions. We will introduce two substitutions due to our choice in annotation convention: the church style instead of the curry style.
+    Substitution is fundamental to both evaluation and typing which represent the execution and the related type-checking of our programs. Moving from simple $\lambda$-calculus to its polymorphic form brings a new concept to the table to consider: types as concrete constructions that can be manipulated almost the same as terms. They can be abstracted and applied to lambda terms and then need their proper substitutions. We will introduce two substitutions due to our choice in annotation convention: the church style instead of the curry style.
     \begin{itemize}
         \item Typing \textit{à la Church} where terms are (partially) annotated together with types. Every abstraction on terms must specify the type of their formal argument. This approach we follow with our simply typed $\lambda$-calculus implies that an initial substitution of types into terms may result in a sub-substitution of types into annotated types.\footnote{In such systems, each term has at most one type}
         %% (SUBTYPING ?)
@@ -427,96 +441,53 @@ end
             \alpha[\alpha:=\sigma] &\equiv \sigma\\
             \gamma[\alpha:=\sigma] &\equiv \gamma \ ( \alpha\neq \gamma)\\
             (\forall \alpha .T)[\alpha:=\sigma] &\equiv \forall \alpha .T \\
-            (\forall \gamma .T)[\alpha:=\sigma] &\equiv \forall \gamma .(T[\alpha:=\sigma])  (\alpha \neq \gamma,\gamma \not\in FV(\sigma)) \\
+            (\forall \gamma .T)[\alpha:=\sigma] &\equiv \forall \gamma .(T[\alpha:=\sigma]),  (\alpha \neq \gamma) \\
             (T_1 \rightarrow T_2)[\alpha:=\sigma] &\equiv (T_1[\alpha:=\sigma]) \rightarrow (T_2[\alpha:=\sigma])\\
             \texttt{Bool}[\alpha:=\sigma] &\equiv \texttt{Bool}\\
             \texttt{Nat}[\alpha:=\sigma] &\equiv \texttt{Nat}
         \end{align*}
 
-     One last unspecified construction is the notion of free and bound type variables as important as with terms: programs are closed terms with closed types. Unlike in \ref{Free variables}, where we state $FV$ as a map from terms into sets of variables, we choose in our implementation approach to define the set of possible closed types that can be built from the current type context.\\
+     One last unspecified construction is the notion of free and bound type variables as important as with terms: programs are closed terms with closed types. Unlike in \ref{fv}, where we state $FV$ as a map from terms into sets of variables, we choose in our implementation approach to define the set of possible closed types that can be built from the current type context (a sequence of type variables, more on that with typing \ref{typing}).\\
      \label{BV}\texttt{
 Inductive $BV$ ($\Delta$:ctxT) : typ -> Prop :=\\
   | bv\_bool : $BV$ $\Delta$ Bool\\
   | bv\_nat : $BV$ $\Delta$ Nat\\
   | bv\_varT : forall ($\alpha$:nat),
                 $\alpha\in\Delta$ -> $BV$ $\Delta$ $\alpha$\\
-  | bv\_arr : forall ($\sigma$ $\delta$:typ),($BV$ $\Delta$ $\sigma$) ->($BV$ $\Delta$ $\delta$)->($BV$ $\Delta$ $\sigma\rightarrow\delta$)\\
+  | bv\_arr : forall ($\sigma$ $\delta$:typ),($BV$ $\Delta$ $\sigma$) ->($BV$ $\Delta$ $\delta$)->($BV$ $\Delta$ ($\sigma\rightarrow\delta$))\\
   | bv\_all : forall ($\alpha$:nat)($\sigma$:typ),
-                ($BV$ $\Delta::\alpha$ σ) -> ($BV$ $\Delta$ $\forall \alpha.\sigma$).
+                ($BV$ $\Delta::\alpha$ $\sigma$) -> ($BV$ $\Delta$ $\forall \alpha.\sigma$).
 }
     We will sometimes write the statement $BV \ \Delta \ \sigma$ as $\sigma\in BV(\Delta)$.
     
-    \subsection{The $\beta$-reduction}
-    Since evaluation mainly consists of reducing $\beta$-redexes into their contractum, there are as many evaluation strategies as argument consumption policies by functions.
-    %%(EXPLAIN CBV AND CBN WITH CONTINUATION PASSING STYLE IF POSSIBLE)
-
-    \begin{itemize}
-        \item Call by value (CBV): each argument is evaluated before substitution in the function's body. It is the strategy followed in our implementation and in most programming languages. The purpose is to evaluate the argument once and for all to avoid re-evaluating the same term in case it appears more than one time in the body (which is reasonably probable while it can happen too that CBV processes unnecessary computing).Two simple examples with 
-        $$M :=  (\lambda x : \texttt{Nat}.if \ (Z x) \ then \ (S x) \ else \ (P x)) (P 0)$$
-        $$N := ((\lambda x : \texttt{Nat}.\lambda y : \texttt{Nat}.if \ (Z x) \ then \ x \ else \ y ) 0) (P (S (P (S 0))))$$
-    \end{itemize}
-    \begin{align*}
-            M &\rightarrow_\beta
-            (\lambda x : \texttt{Nat}.if \ (Z x) \ then \ (S x) \ else \ (P x)) 0\\ &\rightarrow_\beta
-            if \ (Z 0) \ then \ (S 0) \ else \ (P 0)\\ &\rightarrow_\beta
-            if \ true \ then \ (S 0) \ else \ (P 0)\\ &\rightarrow_\beta
-            (S 0)\\\\
-            N &\rightarrow_\beta
-           (\lambda y : \texttt{Nat}.if \ (Z 0) \ then \ 0 \ else \ y ) (P (S (P (S 0))))\\ &\rightarrow_\beta
-           (\lambda y : \texttt{Nat}.if \ (Z 0) \ then \ 0 \ else \ y ) (P (S 0))\\ &\rightarrow_\beta
-           (\lambda y : \texttt{Nat}.if \ (Z 0) \ then \ 0 \ else \ y ) 0\\ &\rightarrow_\beta
-           (Z 0) \ then \ 0 \ else \ 0\\ &\rightarrow_\beta
-           true \ then \ 0 \ else \ 0\\ &\rightarrow_\beta
-           0
-        \end{align*}
-     \begin{itemize}
-         \item Call by name (CBN) : the arguments are directly substituted into the body and are evaluated only if necessary.
-         \footnote{Call by need or Lazy evaluation: a variance of CBN which consists of storing the term's evaluation so that it could be used if the same term needs to be re-evaluated.}
-         On the contrary, this strategy avoids useless computations but not redundant useful ones. The two previous examples show CBN is a worse choice in the first case but a better choice in the second.
-     \end{itemize}
-     \begin{align*}
-            M &\rightarrow_\beta
-            (\lambda x : \texttt{Nat}.if \ (Z x) \ then \ (S x) \ else (P x)) 0\\ &\rightarrow_\beta
-            if \ (Z (P 0)) \ then \ (S (P 0)) \ else (P (P 0))\\ &\rightarrow_\beta
-            if \ (Z 0) \ then \ (S (P 0)) \ else (P (P 0))\\ &\rightarrow_\beta
-            if \ true \ then \ (S (P 0)) \ else (P (P 0))\\ &\rightarrow_\beta
-            (S (P 0))\\ &\rightarrow_\beta
-            (S 0)\\\\
-            N &\rightarrow_\beta
-           (\lambda y : \texttt{Nat}.if \ (Z 0) \ then \ 0 \ else y ) (P (S (P (S 0))))\\ &\rightarrow_\beta
-           (Z 0) \ then \ 0 \ else (P (S (P (S 0))))\\ &\rightarrow_\beta
-           true \ then \ 0 \ else (P (S (P (S 0))))\\ &\rightarrow_\beta
-           0
-        \end{align*}
-    
-    Other considerations with reduction will be that values do not beta reduce, because we obviously want programs to result in values. What is less intuitive is about what we call values for instance $\beta$-redexes inside of $\lambda$-abstraction alone do not evaluate.
+    \subsection{The evaluation}
     
     \AxiomC{$v\in V$}
     \RightLabel{(1)}
-    \UnaryInfC{$(\lambda x : \sigma .M) v \rightarrow_\beta M[x:=v]$}
+    \UnaryInfC{$(\lambda x : \sigma .M) v \rightarrow M[x:=v]$}
     \DisplayProof 
-    \AxiomC{$M\rightarrow_\beta M'$}
+    \AxiomC{$M\rightarrow M'$}
     \RightLabel{(2)}
-    \UnaryInfC{$(M \ N) \rightarrow_\beta (M' \  N)$}
+    \UnaryInfC{$(M \ N) \rightarrow (M' \  N)$}
      \DisplayProof 
     \AxiomC{$v\in V$}
-    \AxiomC{$M\rightarrow_\beta M'$}
+    \AxiomC{$M\rightarrow M'$}
     \RightLabel{(3)}
-    \BinaryInfC{$(v \ M) \rightarrow_\beta (v \ M')$}
+    \BinaryInfC{$(v \ M) \rightarrow (v \ M')$}
     \DisplayProof
 \\\\\\
     \AxiomC{$\sigma \in T$}
     \RightLabel{(4)}
-    \UnaryInfC{$(\lambda \alpha.M) [\sigma] \rightarrow_\beta M[\alpha:=\sigma]$}
+    \UnaryInfC{$(\lambda \alpha.M) [\sigma] \rightarrow M[\alpha:=\sigma]$}
      \DisplayProof\ \ \ \ \ \ \ \ 
-    \AxiomC{$M\rightarrow_\beta M'$}
+    \AxiomC{$M\rightarrow M'$}
     \RightLabel{(5)}
-    \UnaryInfC{$(M \ [T]) \rightarrow_\beta (M' \  [T])$}
+    \UnaryInfC{$(M \ [T]) \rightarrow (M' \  [T])$}
      \DisplayProof
 \\\\\\\
     \AxiomC{}
     \RightLabel{(6)}
-    \UnaryInfC{$if \ true \ then \ M \ else \ N \rightarrow_\beta M$}
+    \UnaryInfC{$if \ true \ then \ M \ else \ N \rightarrow M$}
      \DisplayProof 
     \AxiomC{}
     \RightLabel{(7)}
@@ -524,22 +495,22 @@ Inductive $BV$ ($\Delta$:ctxT) : typ -> Prop :=\\
      \DisplayProof
 
 \begin{prooftree}
-    \AxiomC{$M \rightarrow_\beta M'$}
+    \AxiomC{$M \rightarrow M'$}
     \RightLabel{(8)}
-    \UnaryInfC{$if \ M \ then \ N \ else \ N' \rightarrow_\beta if \ M' \ then \ N \ else \ N'$}
+    \UnaryInfC{$if \ M \ then \ N \ else \ N' \rightarrow if \ M' \ then \ N \ else \ N'$}
 \end{prooftree}
 
-    \AxiomC{$M \rightarrow_\beta M'$}
+    \AxiomC{$M \rightarrow M'$}
     \RightLabel{(9)}
-    \UnaryInfC{$S \ M \rightarrow_\beta S M'$}
+    \UnaryInfC{$S \ M \rightarrow S M'$}
     \DisplayProof\ \ \ \ 
-    \AxiomC{$M \rightarrow_\beta M'$}
+    \AxiomC{$M \rightarrow M'$}
     \RightLabel{(10)}
-    \UnaryInfC{$P \ M \rightarrow_\beta P M'$}
+    \UnaryInfC{$P \ M \rightarrow P M'$}
     \DisplayProof\ \ \ \
     \AxiomC{}
     \RightLabel{(11)}
-    \UnaryInfC{$P \ 0 \rightarrow_\beta 0$}
+    \UnaryInfC{$P \ 0 \rightarrow 0$}
     \DisplayProof
 \\\\\\\\
     \AxiomC{$v \in$ Natural  values}
@@ -557,15 +528,55 @@ Inductive $BV$ ($\Delta$:ctxT) : typ -> Prop :=\\
     \AxiomC{$v \in$ Natural values}
     \RightLabel{(15)}
     \UnaryInfC{$Z \ (S \ v) \rightarrow false$}
-    \DisplayProof
+    \DisplayProof\\
 
-    \subsection{Typing}
-    Some implementation precisions: we have separated the 'informal' context we have used since the beginning into two different types of contexts: the first (usually $\Gamma$) for bindings of term variables to their types and the second (usually $\Delta$) for bound type variables. The appending operator on contexts is $"::"$.
+    Since the core of evaluation consists of rewriting $\beta$-redexes into their contracts, there are as many evaluation strategies as argument consumption policies by functions.
+    %%(EXPLAIN CBV AND CBN WITH CONTINUATION PASSING STYLE IF POSSIBLE)
+
+    \begin{itemize}
+        \item Call by value (CBV): each argument is evaluated before substitution in the function's body. It is the strategy followed in our implementation and most programming languages. The purpose is to evaluate the argument once and for all to avoid re-evaluating the same term in case it appears more than one time in the body (which is reasonably probable while it can happen too that CBV processes unnecessary computing).Two simple examples with 
+        $$M :=  (\lambda x : \texttt{Nat}.if \ (Z x) \ then \ (S x) \ else \ (P x)) (P 0)$$
+        $$N := ((\lambda x : \texttt{Nat}.\lambda y : \texttt{Nat}.if \ (Z x) \ then \ x \ else \ y ) 0) (P (S (P (S 0))))$$
+    \end{itemize}
+    \begin{align*}
+            M &\rightarrow
+            (\lambda x : \texttt{Nat}.if \ (Z x) \ then \ (S x) \ else \ (P x)) 0\\ &\rightarrow
+            if \ (Z 0) \ then \ (S 0) \ else \ (P 0)\\ &\rightarrow
+            if \ true \ then \ (S 0) \ else \ (P 0)\\ &\rightarrow
+            (S 0)\\\\
+            N &\rightarrow
+           (\lambda y : \texttt{Nat}.if \ (Z 0) \ then \ 0 \ else \ y ) (P (S (P (S 0))))\\ &\rightarrow
+           (\lambda y : \texttt{Nat}.if \ (Z 0) \ then \ 0 \ else \ y ) (P (S 0))\\ &\rightarrow
+           (\lambda y : \texttt{Nat}.if \ (Z 0) \ then \ 0 \ else \ y ) 0\\ &\rightarrow
+           (Z 0) \ then \ 0 \ else \ 0\\ &\rightarrow
+           true \ then \ 0 \ else \ 0\\ &\rightarrow
+           0
+        \end{align*}
+     \begin{itemize}
+         \item Call by name (CBN): the arguments are directly substituted into the body and are evaluated only if necessary.
+         \footnote{Call by need or Lazy evaluation: a variance of CBN which consists of storing the term's evaluation so that it could be used if the same term needs to be re-evaluated.}
+         On the contrary, this strategy avoids useless computations but not redundant ones (like if the body is of the form $x+x$, $x$ would have to be evaluated twice before the addition). The two previous examples show CBN is a worse choice in the first case but a better choice in the second.
+     \end{itemize}
+     \begin{align*}
+            M &\rightarrow_\beta
+            if \ (Z (P 0)) \ then \ (S (P 0)) \ else (P (P 0))\\ &\rightarrow_\beta
+            if \ (Z 0) \ then \ (S (P 0)) \ else (P (P 0))\\ &\rightarrow_\beta
+            if \ true \ then \ (S (P 0)) \ else (P (P 0))\\ &\rightarrow_\beta
+            (S (P 0))\\ &\rightarrow_\beta
+            (S 0)\\\\
+            N &\rightarrow_\beta
+           (\lambda y : \texttt{Nat}.if \ (Z 0) \ then \ 0 \ else y ) (P (S (P (S 0))))\\ &\rightarrow_\beta
+           (Z 0) \ then \ 0 \ else (P (S (P (S 0))))\\ &\rightarrow_\beta
+           true \ then \ 0 \ else (P (S (P (S 0))))\\ &\rightarrow_\beta
+           0
+        \end{align*}
+
+    \subsection{Typing}\label{typing}
+    Some implementation precisions: we have separated the 'informal' context we have used since the beginning into two different types of contexts: the first (usually $\Gamma$  of type \texttt{ctxV} in implementation) for bindings of term variables to their types and the second (usually $\Delta$ of type \texttt{ctxT} in implementation) for bound type variables. The appending operator on contexts is $"::"$.\\
     
     \AxiomC{$x : \sigma \in \Gamma$}
-    \AxiomC{$\sigma \in BV(\Delta)$}
     \RightLabel{(Var)}
-    \BinaryInfC{$\Gamma, \Delta \vdash x : \sigma$}
+    \UnaryInfC{$\Gamma, \Delta \vdash x : \sigma$}
     \DisplayProof
     \AxiomC{$\Gamma :: (x : \sigma) , \Delta\vdash M : \delta$}
     \AxiomC{$\sigma\in BV(\Delta)$}
@@ -627,12 +638,12 @@ Inductive $BV$ ($\Delta$:ctxT) : typ -> Prop :=\\
     
 
     \subsection{Type Safety}
-    Here begins the process of proving a crucial property on type systems for $\lambda$2 type safety. Type safety is the property of a type system to be free from a wide range of errors (type errors) while restricting in evaluating well-typed terms only
+    Here begins the process of proving a crucial property on type systems for $\lambda$2 type safety. Type safety is the property of a type system to be free from a wide range of errors : type errors, while restricting in evaluating well-typed terms only
     \footnote{Witch languages do not do since some untypable terms never go wrong like python's \texttt{if False: x = 3 + "l" else: x = 1 + 2}.}: \textit{Well-typed terms do not go wrong}.
-    This explains the propensity in almost every programming language to statically or dynamically type-check the most possible part of their program \footnote{The sooner possible at compilation}. In fact, there is a phase in compilers called type-erasure in charge of the equivalent of translating well-type-checked terms into those of the untyped $\lambda$-calculus for faster computation. Such a function holds on the fact that any evaluation under the typed relation is possible in the corresponding untyped system. This illustrates why types which are not involved in any proper computation are essential to reliable programming language design.\par
+    This explains the propensity in almost every programming language to statically or dynamically type-check the most possible part of their program \footnote{The sooner possible at compilation}. In fact, there is a phase in compilers called type-erasure in charge of the equivalent of translating well-type-checked terms into those of the untyped $\lambda$-calculus for faster computation. Such a function holds on the fact that any evaluation under the typed relation is possible in the corresponding untyped system. This illustrates why types that are not involved in any proper computation are essential to reliable programming language design.\par
     But the road to type safety traverses two fortified castles guarded by a pair of incorruptible knights: progress and preservation!
     \subsubsection{Progress}
-    Progress is about well-typed terms never being stuck (our conception of error: a term that is not a value but that cannot be reduced to it anymore): they are either value or can $\beta$-reduce into another term. But first, let us review the useful lemmas. \par We will always consider that $\Gamma$ is a term context, $\Delta$ is a type context, $\sigma, \delta, \gamma $ are types, $\alpha$ is type variables, $x$ term variables, $M, M', N, N', v$ are $\lambda$-terms.
+    Progress is about well-typed terms never being stuck (our conception of error: a term that is not a value but that cannot be reduced to it anymore): they are either value or can be evaluated into another term. But first, let us review the useful lemmas. \par We will always consider that $\Gamma$ is a term context, $\Delta$ is a type context, $\sigma, \delta, \gamma $ are types, $\alpha$ is type variables, $x$ term variables, $M, M', N, N', v$ are $\lambda$-terms.
     \begin{lemma}[Inversion of the typing relation]
     \end{lemma}
     \label{inversion}\begin{enumerate}
@@ -643,23 +654,23 @@ Inductive $BV$ ($\Delta$:ctxT) : typ -> Prop :=\\
         \item $\Gamma,\Delta \vdash (P M):\sigma \Rightarrow \Gamma,\Delta \vdash M:Nat \wedge \sigma \equiv \texttt{Nat}$
         \item $\Gamma,\Delta \vdash (Z M):\sigma \Rightarrow \Gamma,\Delta \vdash M:Nat \wedge \sigma \equiv \texttt{Bool}$
         \item $\Gamma,\Delta \vdash (If \ M \ then \ N \ else \ N'):\sigma \Rightarrow (\Gamma,\Delta \vdash M:\texttt{Bool}) \wedge (\Gamma,\Delta \vdash N:\sigma) \wedge (\Gamma,\Delta \vdash N':\sigma)$
-        \item $\Gamma,\Delta \vdash x:\sigma \Rightarrow x : \sigma \in \Gamma$
+        \item $\Gamma,\Delta \vdash x:\sigma \Rightarrow (x : \sigma) \in \Gamma$
         \item $\Gamma,\Delta \vdash (\lambda x : \delta.M) :  \sigma \Rightarrow \exists \gamma, (\Gamma::(x : \delta),\Delta \vdash M : \gamma) \wedge (\sigma \equiv \delta \rightarrow \gamma)$
         \item $\Gamma,\Delta \vdash (\lambda \alpha.M):\sigma \Rightarrow \exists \gamma, (\Gamma,\Delta :: \alpha \vdash M:\gamma) \wedge (\sigma \equiv \forall \alpha. \gamma)$
         \item $\Gamma,\Delta \vdash (M N):\sigma \Rightarrow \exists \delta \gamma, (\Gamma,\Delta \vdash M : \delta \rightarrow \gamma) \wedge (\Gamma,\Delta \vdash N:\delta) \wedge (\sigma \equiv \gamma)$
-        \item  $\Gamma,\Delta \vdash (M [\delta]):\sigma \Rightarrow \exists \alpha \gamma, (\Gamma,\Delta \vdash M : \forall \alpha. \gamma) \wedge (\sigma \equiv [\alpha := \delta]\gamma)$
+        \item  $\Gamma,\Delta \vdash (M [\delta]):\sigma \Rightarrow \exists \alpha \exists \gamma, (\Gamma,\Delta \vdash M : \forall \alpha. \gamma) \wedge (\sigma \equiv \gamma[\alpha := \delta])$
     \end{enumerate}
     \begin{proof}
         Direct consequences of inference rules for the typing relations. (In fact, the assertions could have been written as the typing inference rules but inversed: the premices as conclusion and vice-versa).
-        Example case 4 :\\\\
+        Example case 4:\\\\
         \texttt{
 Lemma itr\_succ : forall ($\Gamma$:ctxV)($\Delta$ :ctxT)($M$:trm)($\sigma$:typ),\\
-                ($\Gamma,\Delta\vdash (S M)$:Nat) -> ($\Gamma,\Delta\vdash M$:Nat /\textbackslash \sigma$ = Nat).\\
+                ($\Gamma,\Delta\vdash (S M)$:Nat) ->  ($\Gamma,\Delta\vdash M$:Nat) $\wedge$ (\sigma$ = Nat).\\
 Proof.\\
   intros $\Gamma$ $\Delta$ $M$ $\sigma$ H;split;[inversion H | induction $\sigma$];easy.\\
 Qed.
         }\\\\
-\texttt{split} will separate the conjunction we are proving into two subgoals for each side of the and. In Coq one can write \texttt{tac;[tac\_1 | ... | tac\_n]} to respectively apply \texttt{tac\_1}, ..., \texttt{tac\_n} to the $n$ subgoals generated by the tactic \texttt{tac}.\par \texttt{inversion H} will try a proof by induction on \texttt{($\Gamma,\Delta\vdash (S M)$:Nat)} and will implicitly eliminate subgoals where the term does not match the structure of $(S M)$ i.e. any typing inference rule except (SNat) which will yield induction hypothesis ($\Gamma,\Delta\vdash M$:Nat). The same will happen with \texttt{induction $\sigma$} and result in subgoal \texttt{Nat=Nat}.
+\texttt{split} will separate the conjunction we are proving into two subgoals for each side of the $\wedge$. In Coq one can write \texttt{tac;[tac\_1 | ... | tac\_n]} to respectively apply \texttt{tac\_1}, ..., \texttt{tac\_n} to the $n$ subgoals generated by the tactic \texttt{tac}.\par \texttt{inversion H} will try a proof by induction on \texttt{($\Gamma,\Delta\vdash (S M)$:Nat)} and will implicitly eliminate subgoals where the term does not match the structure of $(S M)$ i.e. any typing inference rule except (SNat) which will yield induction hypothesis ($\Gamma,\Delta\vdash M$:Nat). The same will happen with \texttt{induction $\sigma$} and result in subgoal \texttt{Nat=Nat}.
     \end{proof}
     
 
@@ -667,258 +678,292 @@ Qed.
     \end{lemma}
     \begin{itemize}
         \item if $v$ is a value of type \texttt{Bool}, then $v$ is either $true$ or $false$.
-        \item if $v$ is a value of type \texttt{Nat}, the $v$ is a numeric value ($0$ or $S v$).
+        \item if $v$ is a value of type \texttt{Nat}, then $v$ is a natural value.
         \item if $v$ is a value of type \texttt{$\sigma\rightarrow\delta$}, then $v = \lambda x:\sigma.M$
         \item if $v$ is a value of type \texttt{$\forall\alpha.\sigma$}, then $v = \lambda \alpha.M$
     \end{itemize}
 
     \begin{proof}
-        according to the grammar of values at \ref{syntax} and based on the inversion lemma.
+        according to the grammar of values at \ref{syntax} and based on the inversion lemma. The first case in Coq will look like this:\\\\
+        \texttt{
+Lemma can\_bool : forall ($\Gamma$:ctxV)($\Delta$:ctxT)($M$:trm),\\
+                 (val $M$) -> ($\Gamma,\Delta\vdash M$ : Bool) ->
+                (M = $true$  $\vee$  M = $false$).\\
+Proof.\\
+  intros $\Gamma$ $\Delta$ $M$ H H0.\\
+  induction H;try destruct H;inversion H0;auto.\\
+Qed.
+        }\\\par
+\texttt{Induction H} will launch a proof by induction on different types of values, replacing the sub-cases that are still inductive like \texttt{H : val $M$} by \texttt{H : value\_bool $M$} or \texttt{H : value\_nat $M$}. For the others like \texttt{$M\equiv\lambda x.M$} it will just perform a rewriting with no remaining hypothesis \texttt{H}.\par
+\texttt{try destruct H} will try its argument the tactic \texttt{destruct H} and will leave the goal unchanged if the tactic fails (for the hypothesis \texttt{H} not existing in some sub-goals). This result in destructing sub values like \texttt{value\_bool} into $true$ and $false$ and rewriting them (having \texttt{H0 : $\Gamma,\Delta\vdash true$ : Bool} for $true$). \par
+The \texttt{inversion H0} tactic will try an induction on the typing relation and solve self-contradictory cases like $\Gamma,\Delta\vdash\lambda\alpha.M$ \texttt{:Bool}.\par
+At this stage only remain subgoals \texttt{$true\equiv true$ $\vee$ $true\equiv false$} and \texttt{$false\equiv true$ $\vee$ $false\equiv false$} (thanks to renaming) that are solved by the tactic \texttt{auto} explained futher.
+
     \end{proof}
         
     \begin{theorem}[Progress]
     \label{Progress}
-    For all well-typed terms $M:\sigma$, either $M$ is a value or it can $\beta$-reduce to another term $M'$
-    $$\forall M, (\Gamma,\Delta\vdash M:\sigma)\Rightarrow (M \in V) \vee \exists M' \ | \  M\rightarrow_\beta M'$$
+    For all well-typed terms $M:\sigma$, either $M$ is a value or it can evaluate to another term $M'$
+    $$\forall M, (\emptyset,\emptyset\vdash M:\sigma)\Rightarrow (M \in V) \vee \exists M' \ | \  M\rightarrow_\beta M'$$
     \end{theorem}
     \begin{proof}
-        Induction on the derivations of the typing relation $\Gamma,\Delta\vdash t:\sigma$
+        Induction on the derivations of the typing relation $\emptyset,\emptyset\vdash t:\sigma$
         \footnote{Prove the assertion (that is the conclusion) for each inference rule of the relation assuming it is true for its premises. }
         .\par
-        Cases for values like (TrueBool), (FalseBool), (ZeroNat) or $\rightarrow$I, $\forall$I are immediate.\par
-        For the (SNat) case $(S M) : \verb|Nat|$, the induction hypothesis tells us that $M$ :
         \begin{itemize}
-            \item either is a value of type \texttt{Nat}, then it must be a numerical value according to the 
-            \ref{canocical forms} canonical forms lemma and so is $S M$
-            \item or can $\beta$-reduce to another term $M'$ and so can $S M$ to $S M'$ according to the $\beta$-reduction inference rules $9$.
-        \end{itemize}.
-        The (PNat) and (ZNat) cases are similar to the previous subpoint by corresponding inference rules.
+            \item The hypothesis is not respected in the (Var) case since for any $x$ and $\sigma$, $(x : \sigma) \not\in\emptyset$\footnote{This is the famous \textit{ex falso quodlibet}: $\perp\Rightarrow P$, any proposition is deducted from a contradiction}
+            \item Cases for values like (TrueBool), (FalseBool), (ZeroNat) or $\rightarrow$I, $\forall$I are immediate. In Coq we just need to start our proof like this: \\\\ 
+        \texttt{
+  intros $M$ $\sigma$ H.\\
+  ...\\
+  induction H;...;try solve [left;auto using val, value\_bool, value\_nat].
+        }\\\par
+where the tactic \texttt{left} transform a subgoal of the form \texttt{A $\vee$ B} into simply \texttt{A}. To prove \texttt{A $\vee$ B}, you just need to prove \texttt{A} or to prove \texttt{B} (using \texttt{right})\footnote{introduction of $\vee$ inference rules }. \texttt{solve} try to resolve the goal with the provided tactic and leave it unchanged if it generates subgoals. Combining it with \texttt{try} helps to solve straightforward cases without changing non-trivial ones.\par
+And finally one of the most useful tactics: \texttt{auto}. It recursively first tries to solve the goal by looking at the local context, applies \texttt{intros} otherwise, and tries to apply tactics that match the result in the increasing order of their cost. It can be provided some additional theorems to check with the \texttt{using} option or some whole databases of theorems by the \texttt{with} option. These databases can be user-defined (like our implementation's \texttt{sys\_f\_base}) our system-defined like \texttt{arith}, \texttt{zarith} or \texttt{datatypes}.
         \par
-        For the $(IfBool)$ case $if \ b \ then \ M \ else \ N : \sigma$, the induction hypothesis tells us that $b$ :
+        \item For the (SNat) case $\emptyset,\emptyset\vdash(S M) : \verb|Nat|$, the induction hypothesis tells us that $M$ :
         \begin{itemize}
-            \item either is a value: it is then $true$ or $false$ according to the canonical forms lemma so that the whole term can take a step by inference rule $6$ or $7$ of the $\beta$-reduction.
-            \item or can $\beta$-reduce to another term $b'$. The inference rule $8$ holds and we have $t\rightarrow if \ b' \ then \ M \ else \ N$
+            \item either is a value of type \texttt{Nat}, then it must be a natural value according to the 
+            \ref{canocical forms} canonical forms lemma and so is $S M$ which makes it a value.
+            \item or can evaluates to another term $M'$ and so can $S M$ to $S M'$ according to the evaluation inference rules $9$.
         \end{itemize}
-        \par For the ($\rightarrow$E) case : $(M N):\sigma$, $M$
+        The (PNat) and (ZNat) cases have similar cases except that even when the subterm $M$ is a value $0$ or $(S v)$, they can evaluate by inference rules $11$,$12$ and $14$,$15$ respectively. The second subcase corresponds to $10$ and $13$ .
+        \item For the (IfBool) case $\emptyset,\emptyset\vdash if \ b \ then \ M \ else \ N : \sigma$, the induction hypothesis tells us that $b$ :
+        \begin{itemize}
+            \item either is a value: it is then $true$ or $false$ according to the canonical forms lemma so that the whole term can take a step by inference rule $6$ or $7$ of the evaluation rules.
+            \item or can evaluate to another term $b'$. The inference rule $8$ holds and we have $t\rightarrow if \ b' \ then \ M \ else \ N$
+        \end{itemize}
+        \item For the ($\rightarrow$E) case : $\emptyset,\emptyset\vdash (M N):\sigma$, by induction, $M$ :
         \begin{itemize}
             \item either is a value of type $\sigma\rightarrow\delta$, then it must be an abstraction value $\lambda x : \sigma.M'$ according to 
-            \ref{canocical forms} such that $t$ is a $\beta$-redex. Depending on $N$
+            \ref{canocical forms} such that $t$ is a $\beta$-redex. Depending on the other induction hypothesis, $N$ :
             \begin{itemize}
-                \item which either is a value so that $t$ reduces to $M'[x:=N]$ by inference rule $1$
+                \item which is either a value make that $t$ reduces to $M'[x:=N]$ by inference rule $1$
                 \item or reduces to $N'$ so that $t\rightarrow(M N')$ by inference rule $3$
-            \end{itemize} and then reduces to $M'[x:=N]$ by inference rule 
-            \item or can $\beta$-reduce to another term $M'$ and so can $(M N)$ to $(M' N)$ according to inference rules $2$.
+            \end{itemize}
+            \item or can evaluate to another term $M'$ and so can $(M N)$ to $(M' N)$ according to inference rules $2$.
         \end{itemize}
-        \par For the last case ($\forall$E) : $M[\delta]:\sigma[\alpha:=\delta]$, $M$
+        \item  For the last case ($\forall$E) : $\emptyset,\emptyset\vdash M[\delta]:\sigma[\alpha:=\delta]$, $M$ by induction :
         \begin{itemize}
             \item either is a value of type $\forall\alpha.\sigma$, then it must be an abstraction value $\lambda \alpha .M'$ according to 
             \ref{canocical forms}  so that $t$ reduces to $M'[\alpha:=\delta]$ by inference rule $4$.
-            \item or can reduce to another term $M''$ and so can $M[\delta]$ to $M''[\delta]$ according to inference rules $5$.
+            \item or can reduce to another term $M'$ and so can $M[\delta]$ to $M'[\delta]$ according to inference rules $5$.
+        \end{itemize}
         \end{itemize}
         
     \end{proof}
+
+\begin{remark}\end{remark}
+    As said before, constructive systems like Coq only accept concrete illustrations as proof of existential assertions. To prove a goal the form  \texttt{exists (x:T), P x}, one must provide a term \texttt{t} the same type as \texttt{x} and built using terms in the local and global context. The tactic \texttt{exists t} then generates the subgoal \texttt{P t}. In fact \texttt{exists} is a defined notation for the inductive type \texttt{ex} owning only one constructor\footnote{The existential quantifier is modeled using universal quantifier} :\begin{verbatim}
+>Locate "exists".
+Notation "'exists' x .. y , p" := (ex (fun x => .. (ex (fun y => p)) ..))
+
+>Print ex.
+Inductive ex (A : Type) (P : A -> Prop) : Prop :=
+    ex_intro : forall x : A, P x -> exists y, P y.
+    \end{verbatim}The only way to inductively build an existential predicate \texttt{exists y, P y} is then to provide a variable \texttt{x} such that \texttt{P x} and the tactic \texttt{exists} can be seen here as \texttt{apply (ex\_intro x)}.
+    
+
+
     \subsubsection{Preservation}
-    Preservation is about well-typed terms resulting in another well-typed one if they have to take a step into evaluation. We begin by preliminary definitions and lemmas.\par And again  $\Gamma, \Gamma_1, ...$ are term contexts, $\Delta, \Delta_1,...$ are type contexts, $\sigma, \delta, \gamma ...$ are types, $\alpha, ...$ type variables, $x, ...$ term variables, $M, N...$ are $\lambda$-terms etc.
+    Preservation is about well-typed terms resulting in another well-typed one if they have to take a step into evaluation. We begin with preliminary definitions and lemmas.\par And again  $\Gamma, \Gamma_1, \Gamma_2$ are term contexts, $\Delta, \Delta_1,\Delta_2$ are type contexts, $\sigma, \delta, \gamma$ are types, $\alpha, \mu$ type variables, $x.$ term variables and $M, M', N, N'$ are $\lambda$-terms.
 
     \begin{lemma}[Uniqueness of type]\label{uniqueness of type}
-        A lambda term can have at most one type in a given context. And there is just one derivation tree proving that.
+        A lambda term can have at most one type in a given context.
         $$\forall\Gamma\ \forall\Delta\ \forall\sigma\delta\ \forall M,\ (\Gamma,\Delta \vdash M : \sigma) \wedge (\Gamma,\Delta \vdash M : \delta) \Rightarrow \sigma \equiv \delta$$
     \end{lemma}
     
     \begin{proof}
-        Structural induction on M 
-        \footnote{Prove the assertion for each case of the inductive definition of $M$ assuming it is true for its subterms.}
+        Structural induction on $M$ 
+        \footnote{Prove the assertion for each case of $M$ assuming it is true for its subterms.}
         using corresponding inversion lemma assertion.
     \end{proof}
 
     \begin{definition}[$\subseteq$]\label{subseteq}
+    A context is included in any context that binds its variables to the same types. Those contexts are said to contain this context.
         $$\forall \Gamma_1\Gamma_2, \ \Gamma_1\subseteq\Gamma_2 \equiv \forall x, (x \in \Gamma_1) \Rightarrow (x \in \Gamma_2)$$
         $$\forall \Delta_1\Delta_2, \ \Delta_1\subseteq\Delta_2 \equiv \forall \alpha, (\alpha \in \Delta_1) \Rightarrow (\alpha \in\Delta_2)$$
     \end{definition}
 
-    \begin{lemma} Contexts are included in their extensions.
-        $$\forall \Gamma_1\Gamma_2\ \forall x\ \forall \sigma, (\Gamma_1\subseteq\Gamma_2) \Rightarrow (\Gamma_1::(x : \sigma)\subseteq\Gamma_2::(x : \sigma))$$
-        $$\forall \Delta_1\Delta_2\ \forall \alpha\, (\Delta_1\subseteq\Delta_2) \Rightarrow (\Delta_1::\alpha\subseteq\Delta_2::\alpha)$$
-        $$\forall \Delta_1\Delta_2\ \forall \sigma, (\Delta_1\subseteq\Delta_2) \Rightarrow (\sigma\in BV(\Delta_1)) \Rightarrow (\sigma\in BV(\Delta_2))$$
-    
-    \end{lemma}
-    \begin{proof}
-straightforward from the definition of $\subseteq$ at \ref{subseteq} and from the definition of $BV$ at \ref{BV}  
-    \end{proof}
+    \begin{remark}
+        \begin{itemize}\label{included_inUpdate}
+            \item Context extension preserves inclusion. The proof is based on the previous definition by comparing $x$ and $\alpha$ respectively to the extending variable.
+            \item \label{empty_weakening}Any context contains the empty context.
+        \end{itemize}
+    \end{remark}
 
-    \begin{lemma}[Weakening]\label{weakening}$\subseteq$ is invariant with respect to the typing relation.
+    \begin{lemma}[Weakening]\label{weakening}$\subseteq$ is invariant with respect to the typing and BV relation.
     $$\forall\Gamma_1\Gamma_2\ \forall\Delta\ \forall M\ \forall\sigma, (\Gamma_1\subseteq\Gamma_2) \Rightarrow (\Gamma_1, \Delta\vdash M : \sigma) \Rightarrow (\Gamma_2, \Delta\vdash M : \sigma)$$
     $$\forall\Gamma\ \forall\Delta_1\Delta_2\ \forall M\ \forall\sigma, (\Delta_1\subseteq\Delta_2) \Rightarrow (\Gamma, \Delta_1\vdash M : \sigma) \Rightarrow (\Gamma, \Delta_2\vdash M : \sigma)$$
+    $$\forall\Gamma\ \forall\Delta_1\Delta_2\ \forall\sigma, (\Delta_1\subseteq\Delta_2) \Rightarrow (\sigma\in BV(\Delta_1)) \Rightarrow (\sigma\in BV(\Delta_2))$$
     \end{lemma}
     \begin{proof}
-It is straightforward by induction into the typing relation.        
+It is straightforward by induction into the said relations. Here is the third case in Coq :\\\\
+\texttt{Lemma weakening\_bv : forall ($\Delta$ $\Delta'$:ctxT)($\sigma$:typ),\\
+                             $\Delta\subseteq \Delta'$ ->
+                             (BV $\Delta$ $\sigma$) -> (BV $\Delta'$ $\sigma$).\\
+Proof.\\
+  intros $\Delta$ $\Delta'$ $\sigma$ H H0.\\
+  generalize dependent $\Delta'$.\\
+  induction H0;eauto using \ref{included_inUpdate}, BV.\\
+Qed.\\
+}\par
+\texttt{generalize dependent} abstracts one or more terms out of hypotheses with a \texttt{forall}, especially induction hypothesis. This can help when Coq does not interpret some terms as parameters and not constants of some hypothesis.
+\par\texttt{eauto} behaves \texttt{auto} in addition to trying resolution paths that would leave existential variables in the goal. Providing an inductive type like \texttt{BV} to the \texttt{using} option equals providing all its constructors.
+\par The \texttt{induction H0} will launch a proof by induction on $\sigma\in BV(\Delta)$, the \texttt{apply constructuor} will probably be applied for each subcase with the right constructor inside of \texttt{eauto}. The induction hypothesis will then be applied and the resulting subgoal will be solved by \ref{included_inUpdate}.
     \end{proof}
+
+    
 
     \begin{lemma}[Substitution lemma for terms]\label{Substitution lemma terms}
     Well-typedness is preserved by the substitution of variables by terms of the same type.
-$$\forall \Gamma\ \forall\Delta\ \forall\sigma\delta\ \forall x \ \forall t t', (\Gamma :: (x : \sigma),\Delta\vdash t : \delta) \wedge (\Gamma,\Delta\vdash t' : \sigma) \Rightarrow (\Gamma,\Delta\vdash t[x:=t'] : \delta)$$        
+$$\forall \Gamma\ \forall\Delta\ \forall\sigma\delta\ \forall x \ \forall t t', (\Gamma :: (x : \sigma),\Delta\vdash t : \delta) \wedge (\emptyset,\emptyset\vdash t' : \sigma) \Rightarrow (\Gamma,\Delta\vdash t[x:=t'] : \delta)$$        
     \end{lemma}
 
     \begin{proof}
         By induction on the derivation of $\Gamma::(x:\sigma),\Delta\vdash t : \delta$
         \begin{itemize}
-            \item VAR, $\Gamma::(x:\sigma),\Delta\vdash z : \delta$. 
+            \item (Var), $\Gamma::(x:\sigma),\Delta\vdash z : \delta$. 
             \begin{itemize}
-                \item If $x\equiv z$ then by the uniqueness of type at \ref{uniqueness of type} $\sigma\equiv\delta$ so that $x[x:=t']\equiv t'$ and $\Gamma,\Delta\vdash t': \sigma$.
-                \item Or else $x\not\equiv z$ then $z[x:=t']\equiv z$ and $\Gamma::(x:\sigma),\Delta\vdash z : \delta$.We can deduce $\Gamma,\Delta\vdash z : \delta$ since $z : \delta\not\in (x : \sigma)$ we must have $z :\delta \in \Gamma$.
+                \item If $x\equiv z$ then by the uniqueness of type at \ref{uniqueness of type} $\sigma\equiv\delta$. $z[x:=t']\equiv t'$ and we have $\Gamma,\Delta\vdash t': \sigma$  because of $\emptyset,\emptyset\vdash t': \sigma$ in the assumption and \ref{empty_weakening}.
+                
+                \item Or else $x\not\equiv z$ then $z[x:=t']\equiv z$ and $\Gamma::(x:\sigma),\Delta\vdash z : \delta$.We can deduce $\Gamma,\Delta\vdash z : \delta$ because since $z : \delta\not\in (x : \sigma)$ we must have $z :\delta \in \Gamma$.
             \end{itemize} 
+            \begin{remark}\end{remark}
+        While Coq is a constructive system that rejects the excluded middle tierce as we have discussed at \ref{constructive logic}, there are still some situations implying similar assertions. It is the case of the \texttt{eqb} boolean equality on naturals (the datatype of our type variables) and strings (the datatype of our term variables). Such boolean operation denoted \texttt{x=?y} used with the equality proposition \texttt{x=y} builds a particular datatype beside the following \texttt{eqb\_spec} lemma from the Coq standard library \cite{coq-stdlib} :\\
+        \verb|Lemma eqb_spec s1 s2 : Bool.reflect (s1 = s2) (s1 =? s2).|\\
+        and here is the inductive definition of \texttt{reflect} : \begin{verbatim}Inductive reflect (P : Prop) : bool -> Set :=
+  | ReflectT : P -> reflect P true
+  | ReflectF : ~ P -> reflect P false.\end{verbatim}The use of this lemma is to help us build proofs of the form either $x\equiv z$ or $x\not\equiv z$ as in the previous point without breaking that constructive property of Coq.\par
+  The tactic \texttt{destruct (eqb\_spec x z).} will generate two subgoals with respective hypotheses \texttt{x=z} and \texttt{x<>z} that can be combined with \texttt{eqb\_eq} and \texttt{eqb\_neq} respectively:\begin{verbatim}Lemma eqb_eq x y : (x =? y) = true <-> x = y.
+Lemma eqb_neq x y : (x =? y) = false <-> x <> y
+  \end{verbatim}
 
-            \item $\rightarrow$I, $\Gamma::(x:\sigma),\Delta\vdash\lambda z:\mu.M : \mu\rightarrow\tau$.
+            \item ($\rightarrow$I), $\Gamma::(x:\sigma),\Delta\vdash\lambda z:\mu.M : \mu\rightarrow\tau$.
             \begin{itemize}
                 \item If $x\equiv z$, then $t[x:=t']\equiv\lambda z:\mu.M$, $x\not\in FV(t)$ and $t$ is of type $\delta$.
-                \item Or else $t[x:=t']\equiv\lambda z:\mu.M[x:=t']$. Using the induction hypothesis on $\Gamma::(x:\sigma)::(z : \mu),\Delta\vdash M :\tau$ given by the inversion lemma at \ref{inversion} which becomes $\Gamma::(z : \mu)::(x:\sigma),\Delta\vdash M :\tau$ by weakening (guaranteed by variable convention) , plus $\Gamma::(z : \mu),\Delta\vdash t':\sigma$ given by the wekeaning lemma \ref{weakening}, the induction hypothesis told us that $\Gamma::(z:\mu),\Delta\vdash M[x:=t'] : \delta$. So we can deduce $\Gamma,\Delta\vdash\lambda z : \mu.M[x:=t'] : \delta$ from rule $\rightarrow$I.
+                \item Or else $t[x:=t']\equiv\lambda z:\mu.M[x:=t']$. Using the induction hypothesis on $\Gamma::(x:\sigma)::(z : \mu),\Delta\vdash M :\tau$ given by the inversion lemma at \ref{inversion} which becomes $\Gamma::(z : \mu)::(x:\sigma),\Delta\vdash M :\tau$ by weakening (guaranteed by variable convention) , plus $\Gamma::(z : \mu),\Delta\vdash t':\sigma$ given by the wekeaning lemma \ref{weakening}, the induction hypothesis told us that $\Gamma::(z:\mu),\Delta\vdash M[x:=t'] : \delta$. So we can deduce $\Gamma,\Delta\vdash\lambda z : \mu.M[x:=t'] : \delta$ from rule ($\rightarrow$I).
             \end{itemize} 
 
-            \item $\rightarrow$E, $\Gamma::(x:\sigma),\Delta\vdash(M N) : \delta$.\\ The premises given by the \ref{inversion} inversion lemma, paired with $\Gamma,\Delta\vdash t' : \sigma$ and applied to the induction hypotheses gives us :
-                
-            \begin{prooftree}
-                \AxiomC{$\Gamma,\Delta\vdash M[x:=t'] : \alpha\rightarrow\delta$}
-                \AxiomC{$\Gamma,\Delta\vdash N[x:=t'] : \alpha$}
-                \BinaryInfC{ $\Gamma,\Delta\vdash(M[x:=t'] N[x:=t']) : \delta$}
-            \end{prooftree}
-            We conclude by $t[x:=t']\equiv M[x:=t'] N[x:=t']$ from \ref{substitution1}
+            \item ($\forall$I), $\Gamma::(x:\sigma),\Delta\vdash\lambda \alpha.M : \forall\alpha.\mu$.\\ The inversion lemma gives $\Gamma::(x:\sigma),\Delta::\alpha\vdash M : \mu$. From the induction hypothesis we have $\Gamma,\Delta::\alpha\vdash M[x:=t'] : \mu$. But the previous is the premise by ($\forall$I) of $\Gamma,\Delta\vdash \lambda\alpha.M[x:=t'] : \forall\alpha.\mu$. Finally, let us rewrite $t[x:=t']\equiv\lambda\alpha.M[x:=t']$ by \ref{substitution1}.
 
-            \item $\forall$I, $\Gamma::(x:\sigma),\Delta\vdash\lambda \alpha.M : \forall\alpha.\mu$.\\ The inversion lemma gives $\Gamma::(x:\sigma),\Delta::\alpha\vdash M : \mu$. The weakening lemma gives $\Gamma,\Delta::\alpha\vdash t' : \sigma$, which results from the induction hypothesis into $\Gamma,\Delta::\alpha\vdash M[x:=t'] : \mu$. The previous is the premise by $\forall$I of $\Gamma,\Delta\vdash \lambda\alpha.M[x:=t'] : \forall\alpha.\mu$. Finally $t[x:=t']\equiv\lambda\alpha.M[x:=t']$ by \ref{substitution1}.
-
-            \item $\forall$E, $\Gamma::(x:\sigma),\Delta\vdash M[\gamma] : \mu[\alpha:=\gamma]$.\\ The premise given by the \ref{inversion} inversion lemma, paired with $\Gamma,\Delta\vdash t': \sigma$ and applied to the induction hypotheses gives us :
+            \item (TrueBool), (FalseBool), and (ZeroNat) are straightforward by \ref{substitution1} since they remain unchanged to substitution and are of their types \texttt{Bool} and \texttt{Nat} (wich can be deducted via the inversion lemma) under any context.
+            \item The (SNat),  (PNat),  (ZNat), (IfBool) and even ($\forall$E), ($\rightarrow$E) are barely less simpler: they are solved by the premise given by the 3.5.1 inversion lemma, paired with $\emptyset,\emptyset\vdash t' : \sigma$ and applied to the induction hypotheses plus some  \ref{substitution1} substitution rewriting. Example with $\forall$E : using  $$t[x:=t']\equiv M[x:=t'][\gamma]$$ we have
             \AxiomC{$\Gamma,\Delta\vdash M[x:=t'] : \forall\alpha.\mu$}
             \AxiomC{$\alpha\not\in\Delta$}
+            \LeftLabel{($\forall$E)}
             \BinaryInfC{$\Gamma,\Delta\vdash M[x:=t'][\gamma] : \mu[\alpha:=\gamma]$}
-            \DisplayProof
-            We conclude with \ref{substitution1} by $t[x:=t']\equiv M[x:=t'][\gamma]$
+            \DisplayProof 
 
-            \item TRUEBOOL, FALSEBOOL and ZERONAT are straightforward by \ref{substitution1} since they remain unchanged to substitution.
-            \item SNAT, $\Gamma::(x:\sigma),\Delta\vdash(S M) : \texttt{Nat}$.\\ By the same process as previously (applying induction hypothesis to premises given by inversion lemma) we got :
-            \AxiomC{$\Gamma,\Delta\vdash M[x:=t'] : \texttt{Nat}$}
-            \UnaryInfC{$\Gamma,\Delta\vdash (S M[x:=t']) : \texttt{Nat}$}
-            \DisplayProof. And $t[x:=t']\equiv S M[x:=t']$.
-
-            \item Similar arguments as the previous one can be applied to PNAT and ZNAT typing rules.
-
-            \item IFBOOL, $\Gamma::(x:\sigma),\Delta\vdash if \ b \ then \ M \ else \ N : \delta$\\
-            By the same process as previously, we get:\begin{prooftree}
-                \AxiomC{$\Gamma,\Delta\vdash b[x:=t'] : \texttt{Bool}$}
-                \AxiomC{$\Gamma,\Delta\vdash M[x:=t'] : \delta$}
-                \AxiomC{$\Gamma,\Delta\vdash N[x:=t'] : \delta$}
-                \TrinaryInfC{$\Gamma,\Delta\vdash (if \ b[x:=t'] \ then \ M[x:=t'] \ else \ N[x:=t']) : \delta$}
-            \end{prooftree}Finally $t[x:=y]\equiv(if \ b[x:=t'] \ then \ M[x:=t'] \ else \ N[x:=t'])$ by \ref{substitution1}.
         \end{itemize}
     \end{proof}
 
     \begin{remark}\label{remark}
         By our variable convention, if $\alpha\not\equiv\mu, \ \mu\not\in FV(\delta)$, the successive respective substitution of $\mu,\alpha$ by $\tau,\delta$, $(T[\mu:=\tau])[\alpha:=\delta]$ can be rewritten as $(T[\alpha:=\delta])[\mu:=\tau[\alpha:=\delta]]$.
-    \end{remark}
+    \end{remark}The convention variable which is the basis of a lot of assertions on the implementation has been postulated via an alias of the \texttt{Axiom} command: \texttt{Hypothesis}. What is interesting is that identifiers defined like that behave like local parameters regarding their section i.e. they are only accessible inside their section (like our \texttt{SystemF} module) and become undefined outside of it with every object depending on them being parametrized by a variable of their types. The variable is said to have been discharged. Here is an illustration of that phenomenon:\begin{verbatim}> Section sec.
+> Variable a:nat.
+> Definition f b:nat := a+b.
+> Print f.
+f = fun b : nat => a + b
+     : nat -> nat
+...
+> End sec.
+> Print f.
+f = fun a b : nat => a + b
+     : nat -> nat -> nat\end{verbatim}The variable convention will be abstracted out of any theorem depending on it (like preservation) outside of the module the same way as the variable \texttt{a} with \texttt{f}.
+     
     
     \begin{lemma}[Substitution lemma for types]\label{substitution lemma types}
     $$\forall\Gamma\ \forall\Delta\ \forall\sigma\delta\ \forall\alpha\ \forall M, (\Gamma,\Delta::\alpha\vdash M : \sigma) \Rightarrow (\Gamma[\alpha:=\delta],\Delta\vdash M[\alpha:=\delta] : \sigma[\alpha:=\delta])$$
     
-    Where inductively : \begin{align*}
-        \Gamma::(x : \sigma)[\alpha:=\delta] &\equiv \Gamma[\alpha:=\delta]::(x : \sigma[\alpha:=\delta])\\
+    With $\delta\in BV(\Delta)$ and where inductively : \begin{align*}
+        (\Gamma::(x : \sigma))[\alpha:=\delta] &\equiv \Gamma[\alpha:=\delta]::(x : \sigma[\alpha:=\delta])\\
         \emptyset[\alpha:=\delta] &\equiv \emptyset 
     \end{align*}
     \end{lemma}
     
     \begin{proof}
-        By induction on the derivation of $\Gamma,\Delta::\alpha\vdash t : \sigma$. Also let uss denote $A[b:=c]$ by  $A_{bc}$ for more readability.
+        By induction on the derivation of $\Gamma,\Delta::\alpha\vdash t : \sigma$. Also, let us denote $A[b:=c]$ by  $A_{bc}$ for more readability.
         \begin{itemize}
             \item  (Var) : $\Gamma,\Delta::\alpha\vdash x : \sigma$. We have $x : \sigma \in \Gamma$ thus, $x : \sigma_{\alpha\delta}\in\Gamma_{\alpha\delta}$ by definition. Conclusion : $\Gamma_{\alpha\delta},\Delta\vdash x_{\alpha\delta} : \sigma_{\alpha\delta}$. ($x[\alpha:=\delta]\equiv x)$
 
-            \item ($\rightarrow$I) : $\Gamma,\Delta::\alpha\vdash\lambda x : \gamma. M : \gamma\rightarrow\tau$. By  the inversion lemma we get : $\Gamma::(x:\gamma),\Delta::\alpha\vdash M : \tau$. Applying the induction hypothesis gives : 
+            \item ($\rightarrow$I) : $\Gamma,\Delta::\alpha\vdash\lambda x : \gamma. M : \gamma\rightarrow\tau$. By the inversion lemma, we get $\Gamma::(x:\gamma),\Delta::\alpha\vdash M : \tau$. Applying the induction hypothesis helps obtaining : 
             \AxiomC{$(\Gamma::(x:\gamma))_{\alpha\delta},\Delta\vdash M_{\alpha\delta} : \tau_{\alpha\delta}$}
             \LeftLabel{($\rightarrow$I)}
             \UnaryInfC{$\Gamma_{\alpha\delta},\Delta\vdash\lambda x : \gamma_{\alpha\delta}. M_{\alpha\delta} : (\gamma_{\alpha\delta}\rightarrow\tau_{\alpha\delta})$}
-            \DisplayProof. All that remains is to recall that $(\lambda x : \gamma .M)[\alpha:=\delta]\equiv\lambda x : \sigma[\alpha:=\delta].M[\alpha:=\delta]$.
+            \DisplayProof. All that remains is to recall that $(\lambda x : \gamma .M)[\alpha:=\delta]\equiv\lambda x : \sigma[\alpha:=\delta].M[\alpha:=\delta]$. The procedure is similar for ($\rightarrow$E).
 
-            \item ($\rightarrow$E) : $\Gamma,\Delta::\alpha\vdash (M N) : \sigma$. $M$ is of type $\gamma\rightarrow\sigma$ and $N$ is of type $\gamma$ by inversion. Then we can deduce after induction hypothesis that : 
-            \\
-                \AxiomC{$\Gamma_{\alpha\delta},\Delta\vdash M_{\alpha\delta} : (\gamma_{\alpha\delta}\rightarrow\sigma_{\alpha\delta})$}
-                \AxiomC{$\Gamma_{\alpha\delta},\Delta\vdash N_{\alpha\delta} : \gamma_{\alpha\delta}$}
-                \LeftLabel{($\rightarrow$E)}
-                \BinaryInfC{$\Gamma_{\alpha\delta},\Delta\vdash (M N)_{\alpha\delta} : \sigma_{\alpha\delta}$}
-            \DisplayProof \\
-            Please forget not the rewritten substitution on the conclusion.
-
-            \item ($\forall$I) : $\Gamma,\Delta::\alpha\vdash\lambda \mu.M : \forall \mu.\gamma$. By inversion $\Gamma,\Delta::\alpha::\mu\vdash M : \gamma$ and $\mu\not\in(\Delta::\alpha)$.
+            \item ($\forall$I) : $\Gamma,\Delta::\alpha\vdash\lambda \mu.M : \forall \mu.\gamma$. By inversion $\Gamma,\Delta::\alpha::\mu\vdash M : \gamma$ and $\mu\not\in(\Delta::\alpha)$ by variable convention.
 
             \begin{itemize}
                 \item if $\alpha\equiv\mu$ we have $\mu\in(\Delta::\alpha)$ that would implies a contradiction in the hypothesis.
 
-                \item Or else $\alpha\not\in(\Delta::\mu)$ and $(\Delta::\alpha::\mu)\subseteq(\Delta::\mu::\alpha)$, the weakening lemma for types \ref{weakening} validate $\Gamma,\Delta::\mu::\alpha\vdash M : \gamma$. The next step is the usual deduction:
+                \item Or else $(\Delta::\alpha::\mu)\subseteq(\Delta::\mu::\alpha)$, the weakening lemma for types \ref{weakening} validate $\Gamma,\Delta::\mu::\alpha\vdash M : \gamma$. After applying the induction hypothesis we get:
             \AxiomC{$\Gamma_{\alpha\delta},\Delta::\mu\vdash M_{\alpha\delta} : \gamma_{\alpha\delta}$}
-            \AxiomC{$\alpha\not\in(\Delta::\mu)$}
             \LeftLabel{($\forall$I)}
-            \BinaryInfC{$\Gamma_{\alpha\delta},\Delta\vdash\lambda \mu.M_{\alpha\delta} : \forall \mu.\gamma_{\alpha\delta}$}
-            \DisplayProof Completed by the fact that if $\alpha\not\equiv\mu$ $(\lambda \mu.M)[\alpha:=\delta]\equiv\lambda\mu.M[\alpha:=\delta]$.
+            \UnaryInfC{$\Gamma_{\alpha\delta},\Delta\vdash\lambda \mu.M_{\alpha\delta} : \forall \mu.\gamma_{\alpha\delta}$}
+            \DisplayProof completed by the fact that if $\alpha\not\equiv\mu$ $(\lambda \mu.M)[\alpha:=\delta]\equiv\lambda\mu.M[\alpha:=\delta]$.
             \end{itemize}
 
-            \item ($\forall$E) : $\Gamma,\Delta::\alpha\vdash M [\tau] : \gamma[\mu:=\tau]$. By inversion $M$ is of type $\forall \mu.\gamma$ and $\mu\not\in(\Delta::\alpha)$. We can deduct $\mu\not\in\Delta$ and $\mu\not\equiv\alpha$. The later directly means by the induction hypothesis that  $M_{\alpha\delta}$ is under $\Gamma_{\alpha\delta}$ and $\Delta$ of type $\forall\mu.\gamma_{\alpha\delta}$. Resulting in : 
+            \item ($\forall$E) : $\Gamma,\Delta::\alpha\vdash M [\tau] : \gamma[\mu:=\tau]$. By inversion $M$ is of type $\forall \mu.\gamma$ and $\mu\not\in(\Delta::\alpha)$ still by variable convention meaning $\mu\not\equiv\alpha$. By induction :  $M_{\alpha\delta}$ is under $\Gamma_{\alpha\delta}$ and $\Delta$ of type $\forall\mu.\gamma_{\alpha\delta}$. Resulting in : 
             \AxiomC{$\Gamma_{\alpha\delta},\Delta\vdash M_{\alpha\delta} : \forall\mu.\gamma_{\alpha\delta}$}
-            \AxiomC{$\mu\not\in\Delta$}
             \LeftLabel{($\forall$E)}
-            \BinaryInfC{$\Gamma_{\alpha\delta},\Delta\vdash M_{\alpha\delta} [\tau_{\alpha\delta}] : \gamma_{\alpha\delta}[\mu:=\tau_{\alpha\delta}]$}
-            \DisplayProof. Recall of the \ref{remark} remark that $(\gamma[\mu:=\tau])_{\alpha\delta}\equiv\gamma_{\alpha\delta}[\mu:=\tau_{\alpha\delta}]$ since $\mu\not\equiv\alpha$ and $\mu\not\in FV(\gamma)$ by the variable convention \footnote{Or the Barendregt convention \cite{10.5555/162552.162561}}.
+            \UnaryInfC{$\Gamma_{\alpha\delta},\Delta\vdash M_{\alpha\delta} [\tau_{\alpha\delta}] : \gamma_{\alpha\delta}[\mu:=\tau_{\alpha\delta}]$}
+            \DisplayProof. Recall of the \ref{remark} remark that $(\gamma[\mu:=\tau])_{\alpha\delta}\equiv\gamma_{\alpha\delta}[\mu:=\tau_{\alpha\delta}]$ since $\mu\not\equiv\alpha$ and $\mu\not\in FV(\gamma)$ by the variable convention.
 
-            \item (TrueBool),(FalseBool) and (ZeroNat) are straightforward cases since both these constants and their Base types \texttt{Bool},\texttt{Nat} remain unchanged after substitution.
+            \item (TrueBool),(FalseBool), and (ZeroNat) are straightforward cases since both these constants and their base types \texttt{Bool},\texttt{Nat} remain unchanged after substitution. This can be achieved in Coq with $$\texttt{inversion H0; constructor}.$$ Where \texttt{H0} is the statement we are doing the induction on: this has the same effect as using \ref{inversion} inversion lemma and will rewrite $\sigma$ as \texttt{Bool} or \texttt{Nat}. \texttt{constructor} introduces hypotheses (\texttt{intros}), normalize the goal (\texttt{hnf}) and if it is an inductive type do \texttt{apply} with the appropriate constructor (e.g. (TrueBool) equivalent constructor) which will solve the goal.
 
-            \item (SNat) : $\Gamma,\Delta::\alpha\vdash (S M) : \texttt{Nat}$.
-            \AxiomC{$\Gamma_{\alpha\delta},\Delta\vdash M_{\alpha\delta} : \texttt{Nat}$}
-            \LeftLabel{(SNat)}
-            \UnaryInfC{$\Gamma_{\alpha\delta},\Delta\vdash (S M_{\alpha\delta}) : \texttt{Nat}$}
-            \DisplayProof by inversion, induction and substitution rewriting.
-
-            \item Cases (PNat),(ZNat) and (IfBool) are pretty similar.
+            \item (SNat) : $\Gamma,\Delta::\alpha\vdash (S M) : \texttt{Nat}$.By inversion, induction, and substitution rewriting: $$\texttt{inversion H0; pose proof (IHM \_ \_ \_ H H2);constructor;easy.}$$ \texttt{pose proof} add a new hypothesis to the local context whose type is the one of the provided instanciation of the \texttt{IHM} induction hypothesis. The underscores delegate to Coq the task of guessing the first dependent parameters ($\sigma,\Gamma,\Delta$) from the last provided ones ($\delta\in BV(\Delta),\Gamma,\Delta::\alpha\vdash t:\sigma$).
         \end{itemize}
+        The two following tactic chains can be combined and directly chained to the tactic that launches the induction proof: \begin{verbatim}Proof.
+  ...
+  induction M;intros;try solve 
+  [inversion H0;try pose proof (IHM _ _ _ H H2);constructor;easy].\end{verbatim}This reduced the number of generated subgoals from 12 to 6. Also, we use induction on \texttt{M} instead of \texttt{H0} because of \texttt{generalize dependent} on $\sigma,\Gamma,\Delta$ which abstracts them out of the subgoal and remove hypothesis \texttt{H0} before it get reintroduced by \texttt{intros}.
     \end{proof}
 
 
     \begin{theorem}[Preservation]
-    If $M$ is a well-typed term of type $\sigma$ and it $\beta$-reduces to $M'$ then $M'$ is a well-typed term of the same type.
-    $$\forall\Gamma\ \forall\Delta\ \forall\sigma\ \forall M, (\Gamma,\Delta\vdash M : \sigma) \wedge (\exists M' \ | \  M\rightarrow_\beta M') \Rightarrow M' : \sigma$$
+    If $M$ is a well-typed term of type $\sigma$ and it evaluates to $M'$ then $M'$ is a well-typed term of the same type.
+    $$\forall\sigma\ \forall M, (\emptyset,\emptyset\vdash M : \sigma) \wedge (\exists M' \ | \  M\rightarrow_\beta M') \Rightarrow (\emptyset,\emptyset\vdash M' : \sigma)$$
     \end{theorem}
     \begin{proof}
-        By induction of the derivation of $\Gamma,\Delta\vdash t : \sigma$
+        By induction of the derivation of $\emptyset,\emptyset\vdash t : \sigma$
         \begin{itemize}
-            \item (Var) : The hypotheses are not met since there is no $t'$ such that $x\rightarrow t$ regarding the evaluation rules, the conclusion is trivially true \footnote{This is the famous \textit{ex falso quodlibet} : $\perp\Rightarrow P$, any proposition is deducted from a contradiction}
+            \item (Var) : The hypotheses are not met for the same reasons as progress. 
             
-            \item ($\rightarrow$I), ($\forall$I) : The hypotheses are not met since abstractions values and cannot take a step into evaluation.
+            \item ($\rightarrow$I), ($\forall$I) : The hypotheses are not met since abstraction values cannot take a step into evaluation.
             
-            \item ($ \rightarrow$E) : $ \Gamma,\Delta\vdash (M N) : \delta $. The inversion lemma rule $11$ yields that there exist a type $\gamma$ such that $M$ is of type $\gamma\rightarrow\delta$ ans $N$ is of type $\gamma$.In other hands the statement $t\rightarrow t'$ would implies inference rules $1,2$ or $3$ :
+            \item ($ \rightarrow$E) : $ \emptyset,\emptyset\vdash (M N) : \delta $. The inversion lemma rule $11$ yields that there exist a type $\gamma$ such that $M$ is of type $\gamma\rightarrow\delta$ and $N$ is of type $\gamma$.In other hands the statement $t\rightarrow t'$ would implies inference rules $1,2$ or $3$ :
             \begin{itemize}
-                \item ($1$) : $(\lambda x : \gamma.M') v \rightarrow M'[x:=v]$ : The inversion lemma \ref{inversion} $9$ gives us $\Gamma::(x:\gamma),\Delta\vdash M' : \delta$ and $\Gamma,\Delta\vdash v : \gamma$. We can now apply out beloved \ref{Substitution lemma terms} substitution lemma to obtain that $\Gamma,\Delta\vdash M'[x:=v] : \delta$.
+                \item ($1$) : $(\lambda x : \gamma.M') v \rightarrow M'[x:=v]$ : The inversion lemma \ref{inversion} $9$ gives us $(x:\gamma),\emptyset\vdash M' : \delta$ and $\emptyset,\emptyset\vdash v : \gamma$. We can now apply our \ref{Substitution lemma terms} substitution lemma to obtain that $\emptyset,\emptyset\vdash M'[x:=v] : \delta$.
 
-                \item ($2$) : $(M N) \rightarrow (M' N)$ with $M \rightarrow M'$. The induction hypothesis applied to $M$ results in $\Gamma,\Delta\vdash M' : \gamma\rightarrow\delta$. Combined with the prior on the type of $N$, we can deduce by the same inference rule ($\rightarrow $E) that $(M' N)$ is of type $\delta$
+                \item ($2$) : $(M N) \rightarrow (M' N)$ with $M \rightarrow M'$. The induction hypothesis applied to $M$ results in $\emptyset,\emptyset\vdash M' : \gamma\rightarrow\delta$. Combined with the prior on the type of $N$, we can deduce by the same inference rule ($\rightarrow $E) that $(M' N)$ is of type $\delta$
 
-                \item ($3$) : $(v N)\rightarrow (v N') $ with $N\rightarrow N'$. As by the previous point, having $N'$ of type $\gamma$ by the induction hypothesis, we get $(v N')$ of type $\delta$ by $(\rightarrow$E).
+                \item ($3$) : $(v N)\rightarrow (v N') $ with $N\rightarrow N'$. As by the previous point, having $N'$ of type $\gamma$ by the induction hypothesis, we get $(v N')$ of type $\delta$.
             \end{itemize}
 
-            \item ($\forall$E) : $\Gamma,\Delta\vdash M [\gamma] : \delta[\alpha:=\gamma]$. $M$ is of type $\forall \alpha \delta$ by rule 12 of he inversion lemma. $t\rightarrow t'$ would implies the following evaluation rules :
+            \item ($\forall$E) : $\emptyset,\emptyset\vdash M [\gamma] : \delta[\alpha:=\gamma]$. $M$ is of type $\forall \alpha. \delta$ by rule 12 of the inversion lemma. $t\rightarrow t'$ would imply the following evaluation rules :
             \begin{itemize}
-                \item $(4)$ : $(\lambda \alpha.M') [\gamma]\rightarrow M'[\alpha:=\gamma]$. The inversion lemma case 10 giving $\Gamma, \Delta::\alpha\vdash M' : \delta$ applied to the substitution lemma for types \ref{substitution lemma types} gives $\Gamma,\Delta\vdash M'[\alpha:=\gamma] : \delta[\alpha:=\gamma]$ ($\Gamma[\alpha:=\gamma] = \Gamma$ by $\alpha\not\in\Delta$).
+                \item $(4)$ : $(\lambda \alpha.M') [\gamma]\rightarrow M'[\alpha:=\gamma]$. The inversion lemma case 10 giving $\emptyset,\alpha\vdash M' : \delta$ applied to the substitution lemma for types \ref{substitution lemma types} gives $\emptyset,\emptyset\vdash M'[\alpha:=\gamma] : \delta[\alpha:=\gamma]$.
 
-                \item ($5$) : $M[\gamma] \rightarrow M'[\gamma]$ with $M \rightarrow M'$. We have $\Gamma,\Delta\vdash M'[\gamma] : \delta$ the same way as previous cases ($2$) and ($3$) : induction hypothesis on the premise plus ($\forall$E) inference rule.
+                \item ($5$) : $M[\gamma] \rightarrow M'[\gamma]$ with $M \rightarrow M'$. We have $\emptyset,\emptyset\vdash M'[\gamma] : \delta$ the same way as previous cases ($2$) and ($3$) : induction hypothesis on the premise plus ($\forall$E) inference rule.
             \end{itemize}
 
             \item (TrueBool), (FalseBool) and (ZeroNat) cases are straightforward because they are values and do not evaluate the same as ($\rightarrow$I) or ($\forall$I).
 
-            \item (SNat) : $\Gamma,\Delta\vdash (S M) : \texttt{Nat}$. $M$ is of type \texttt{Nat} by the inversion lemma and we only have case $9$ implied into evaluation (if $M$ was a value it would not be involved in evaluation and will be concerned by the previous point).  $(S M)\rightarrow (S M') $ with $M \rightarrow M'$ : $M'$ of type \texttt{Nat} by induction hypthesis $\Gamma,\Delta\vdash (S M') : \texttt{Nat}$ by (SNat).
+            \item (SNat) : $\emptyset,\emptyset\vdash (S M) : \texttt{Nat}$. $M$ is of type \texttt{Nat} by the inversion lemma and we only have case $9$ implied into evaluation (if $M$ was a value it would not be involved in evaluation and will be concerned by the previous point).  $(S M)\rightarrow (S M') $ with $M \rightarrow M'$ : $M'$ of type \texttt{Nat} by induction hypthesis $\emptyset,\emptyset\vdash (S M') : \texttt{Nat}$ by (SNat). Similar arguments can justify (PNat) and (ZNat) cases.
 
-            \item Similar arguments can justify (PNat) and (ZNat) cases.
-
-            \item (IfBool) : $\Gamma,\Delta\vdash (if \ M \ then \ N \ else \ N') : \delta$. By inversion lemma, $M$ is of type \texttt{Bool}, $N,N'$ of type $\delta$. The cases :
+            \item (IfBool) : $\emptyset,\emptyset\vdash (if \ M \ then \ N \ else \ N') : \delta$. By inversion lemma, $M$ is of type \texttt{Bool}, $N,N'$ of type $\delta$. The cases :
             \begin{itemize}
                 \item (6) (and analogous (7) proved by replacing $true$ by $false$) : $t \rightarrow N$ and $N$ is of type $\delta$.
                 
-                \item (8) : $t \rightarrow (if \ M' \ then \ N \ else \ N')$ with $M\rightarrow M'$. The induction hypothesis applied to the premise state that $M'$ is also of type \texttt{Bool}. Thus $t'$ is of type $\delta$ by (IfBool).
+                \item (8) : $t \rightarrow (if \ M' \ then \ N \ else \ N')$ with $M\rightarrow M'$. The induction hypothesis applied to the premise states that $M'$ is also of type \texttt{Bool}. Thus $t'$ is of type $\delta$ by (IfBool).
             \end{itemize}
         \end{itemize}
     \end{proof}
-
+\newpage
 \section{Conclusion}
+The completion of this bachelor project marks an achievement in demonstrating a Coq-based proof for the safety of the System F typing system. This exploration and implementation have enriched our comprehension of the core principles of type theory in programming. The project underscores the strength of the $\lambda$-calculus and the Curry-Howard isomorphism, drawing attention to the correspondence between type systems and logical systems. This has been useful in simplifying simpler cases of practical proofmaking by automation but also emphasizes the critical role of rigorous type-safety and formal methods in ensuring the security of programs.
 
 \addcontentsline{toc}{section}{References}
 
