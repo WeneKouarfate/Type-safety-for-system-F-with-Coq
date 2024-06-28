@@ -1,5 +1,3 @@
-Module Export SystemF.
-
 Require Import String.
 Require Import Arith.
 Require Import Relations.
@@ -467,7 +465,7 @@ Lemma itr_succ : forall (Γ : ctxV)(Δ : ctxT)(M:trm)(σ:typ),
                 $<Γ - Δ ⊢ (S M) ∈ σ>$ ->
                 ($<Γ - Δ ⊢ M ∈ Nat>$ /\ σ = $<Nat>$).
 Proof.
-  intros;split;[inversion H | induction σ];easy.
+  intros  Γ Δ M σ H;split;[inversion H | induction σ];easy.
 Qed.
 
 Lemma itr_pred : forall (Γ : ctxV)(Δ : ctxT)(M:trm)(σ:typ),
@@ -653,23 +651,8 @@ Lemma can_bool : forall (Γ:ctxV)(Δ:ctxT)(M:trm),
                     (val M) -> $<Γ - Δ ⊢ M ∈ Bool>$ ->
                     (M = $<true>$  \/ M = $<false>$).
 Proof.
-  intros.
-  inversion H;destruct H1;auto.
-
-    assert (H1:=(itr_zero _ _ _ H0)).
-    discriminate.
-
-    assert (H3:=(itr_succ _ _ _ _ H0)).
-    destruct H3.
-    discriminate.
-
-    assert (H1:=(itr_absV _ _ _ _ _ _ H0)).
-    destruct H1;destruct H1.
-    discriminate.
-
-    assert (H1:=(itr_absT _ _ _ _ _ H0)).
-    destruct H1;destruct H1.
-    discriminate.
+  intros Γ Δ M H H0.
+  induction H;try destruct H;inversion H0; auto.
 Qed.
 
 (* Corollary with empty term context *)
@@ -792,14 +775,14 @@ Proof with eauto with sys_f_base.
   remember ctx_nilV as Γ.
   remember ctx_nilT as Δ.
 
-  induction H;subst Γ;subst Δ. (*eauto 100 using one_step_red, val, value_nat, value_bool  with sys_f_base.*)
+  induction H;subst Γ;subst Δ;try solve [ left;auto using val, value_bool, value_nat].
 
   assert ($< nilV >$ x = None).
     compute;easy.
   easy.
 
-  left.
-  auto using val.
+  (*left.
+  auto using val.*)
 
   right.
   assert ($< nilV >$ = $< nilV >$) by easy.
@@ -824,8 +807,8 @@ Proof with eauto with sys_f_base.
     assert $< M N →β x N >$ by exact (red_appV1 _ _ N H1).
     exists ($<x N>$);easy.
 
-  left.
-  auto using val.
+  (*left.
+  auto using val.*)
 
   
   right.
@@ -845,11 +828,11 @@ Proof with eauto with sys_f_base.
    assert ($< M [δ] →β x [δ] >$) by exact (red_appT _ _ δ H1).
    exists ($<x [δ] >$);easy.
 
-  left.
+  (*left.
   auto using val, value_bool.
 
   left.
-  auto using val, value_bool.
+  auto using val, value_bool.*)
 
   Check can_bool_empty.
   right.
@@ -870,8 +853,8 @@ Proof with eauto with sys_f_base.
     assert ($< (if b then M else N) →β (if x then M else N) >$) by exact (red_if b x M N H0).
     exists ($<(if x then M else N) >$);easy.
 
-  left.
-  auto using val, value_nat.
+  (*left.
+  auto using val, value_nat.*)
 
   assert ($< nilV >$ = $< nilV >$) by easy.
   assert ($< nilT >$ = $< nilT >$) by easy.
@@ -1016,31 +999,26 @@ Lemma includedin_updateT : forall (Δ Δ':ctxT)(α:nat),
                              $<(α T:: Δ) T⊆ (α T:: Δ')>$.
 Proof.
   unfold includedinT.
-  intros Δ Δ' α H.
-  intros μ. 
+  intros Δ Δ' α H μ. 
   destruct (Nat.eqb_spec α μ) as [Hxy | Hxy].
-    rewrite Hxy.
-    rewrite update_eqT.
-    rewrite update_eqT.
+    rewrite Hxy, 2 update_eqT.
     easy.
 
-    rewrite update_neqT.
+    rewrite update_neqT;try easy.
     intro; rewrite <- H0.
     rewrite <- (H _ H0) in H0;rewrite H0.
     exact (update_neqT Δ' _ _ Hxy).
-
-    easy.
 Qed.
 
 Print BV.
 
-Lemma BV_updateT : forall (Δ Δ':ctxT)(σ:typ),
+Lemma weakening_bv : forall (Δ Δ':ctxT)(σ:typ),
                              $<Δ T⊆ Δ'>$ ->
                              (BV Δ σ) -> (BV Δ' σ).
 Proof.
-  intros.
+  intros Δ Δ' σ H H0.
   generalize dependent Δ'.
-  induction H0;eauto using includedin_updateT with sys_f_base.
+  induction H0;eauto using includedin_updateT, BV.
 Qed.
 
 Fact cons_includedinT : forall (Δ:ctxT)(n:nat), $<Δ T⊆ (n T:: Δ)>$.
@@ -1057,7 +1035,7 @@ Qed.
 Corollary BV_cons_updateT : forall (Δ:ctxT)(n:nat)(σ:typ), (BV Δ σ) -> (BV $<n T:: Δ>$ σ).
 Proof.
   intros.
-  exact (BV_updateT _ _ σ (cons_includedinT Δ n) H).
+  exact (weakening_bv _ _ σ (cons_includedinT Δ n) H).
 Qed.
 
 Lemma weakeningV : forall (Γ Γ':ctxV)(Δ:ctxT)(M:trm)(σ:typ), 
@@ -1067,7 +1045,7 @@ Lemma weakeningV : forall (Γ Γ':ctxV)(Δ:ctxT)(M:trm)(σ:typ),
 Proof.
   intros.
   generalize dependent Γ'.
-  induction H0;eauto using includedin_updateV with sys_f_base.
+  induction H0;eauto using includedin_updateV, typ_rel.
 Qed.
 
 Corollary empty_weakeningV : forall (Γ:ctxV)(Δ:ctxT)(M:trm)(σ:typ),
@@ -1092,7 +1070,7 @@ Lemma weakeningT : forall (Γ:ctxV)(Δ Δ':ctxT)(M:trm)(σ:typ),
 Proof.
   intros.
   generalize dependent Δ'.
-  induction H0;eauto using includedin_updateT, BV_updateT with sys_f_base.
+  induction H0;eauto using includedin_updateT, weakening_bv with sys_f_base.
 Qed.
 
 Corollary empty_weakeningT : forall (Γ:ctxV)(Δ:ctxT)(M:trm)(σ:typ),
@@ -1235,7 +1213,7 @@ Qed.
 (* =====================================================================
 *****************SUBSTITUTION LEMMA FOR TERMS **************************
 ====================================================================== *)
-
+Hint Rewrite itr_true itr_false : rewrite_base.
 Lemma substitutionV : forall (Γ:ctxV)(Δ:ctxT)(x:string)(M s:trm)(σ δ:typ),
                                 (BV Δ σ) ->
                                 $<(x ; σ V:: Γ) - Δ ⊢ M ∈ δ>$ ->
@@ -1317,6 +1295,7 @@ Proof with eauto with sys_f_base.
 
   (* TRUE *)
   simpl.
+
   rewrite (itr_true _ _ _ H0).
   eauto using typ_rel.
 
@@ -1464,11 +1443,11 @@ Proof.
   rewrite (H6 e).
   rewrite <- e in H3.
   assert ($< n T:: n T:: Δ T⊆ n T:: Δ >$) by exact (weakeningT_double_var Δ n).
-  assert (BV $< n T:: Δ >$ σ) by exact ((BV_updateT _ _ σ H7) H3).
+  assert (BV $< n T:: Δ >$ σ) by exact ((weakening_bv _ _ σ H7) H3).
   exact (bv_all _ _ _ H8).
 
   assert ($< n T:: α T:: Δ T⊆ α T:: n T:: Δ >$) by exact (weakeningT_neq_var Δ _ _ n0).
-  assert (BV $< α T:: n T:: Δ >$ σ) by exact ((BV_updateT _ _ σ H5) H3).
+  assert (BV $< α T:: n T:: Δ >$ σ) by exact ((weakening_bv _ _ σ H5) H3).
   assert (BV $< n T:: Δ >$ $< TT{ α → δ} σ >$) by exact (IHσ _ H1 H6).
   assert (BV Δ $< ∀ n, TT{ α → δ} σ >$) by exact (bv_all _ _ _ H7).
   simpl.
@@ -1573,7 +1552,8 @@ Proof.
   generalize dependent Δ.
   generalize dependent Γ.
   generalize dependent σ.
-  induction M;intros.
+  induction M;intros;
+  try solve [inversion H0;try pose proof (IHM _ _ _ H H2);constructor;easy].
 Show 2.
   
 
@@ -1612,7 +1592,7 @@ Show 2.
     destruct (Nat.eqb_neq α n).
     rewrite (H3 ((Nat.neq_sym n α) n0)).
     inversion H0.
-    assert (BV $< n T:: Δ >$ δ) by exact (BV_updateT _ _ _ (cons_includedinT Δ n) H).
+    assert (BV $< n T:: Δ >$ δ) by exact (weakening_bv _ _ _ (cons_includedinT Δ n) H).
     assert ($< Γ - α T:: n T:: Δ ⊢ M ∈ σ0 >$) by exact (weakeningT _ _ _ _ _ (weakeningT_neq_var Δ n α n0) H7).
     assert ($< CTT{ α → δ} Γ - n T:: Δ ⊢ TV{ α → δ} M ∈ TT{ α → δ} σ0 >$) by exact (IHM _ _ _ H8 H9).
     unfold sub_typ.
@@ -1653,15 +1633,6 @@ Show 2.
       rewrite (substitution_typ σ0 _ t _ _ n H12).
       easy.
 
-  (*true*)
-  inversion H0.
-  simpl.
-  apply typ_rel_true.
-
-  (*false*)
-  inversion H0.
-  simpl.
-  apply typ_rel_false.
 
   (*If then else*)
   inversion H0.
@@ -1670,26 +1641,16 @@ Show 2.
   pose proof (IHM3 _ _ _ H H7).
   apply typ_rel_if;easy.
 
-  (* Zero *)
-  inversion H0.
-  simpl; apply typ_rel_zero.
-
-  (* Succ *)
-  inversion H0.
-  pose proof (IHM _ _ _ H H2).
-  apply typ_rel_succ;easy.
-
-  (* Pred *)
-  inversion H0.
-  pose proof (IHM _ _ _ H H2).
-  apply typ_rel_pred;easy.
-
-  (* Zerop *)
-  inversion H0.
-  pose proof (IHM _ _ _ H H2).
-  apply typ_rel_iszero;easy.
 Qed.
 
+(*
+Section sec.
+Parameter (x:nat).
+Definition f := (fun (y:nat) => x + y).
+Print f.
+End sec.
+Print f.
+*)
 (*===================================================================
 *********************************************************************
 ***************************PRESERVATION******************************
