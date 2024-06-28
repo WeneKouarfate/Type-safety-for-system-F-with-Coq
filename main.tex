@@ -118,6 +118,7 @@ We will genuinely start with one of the simplest forms of the $\lambda$-calculus
         {\Gamma ; (x : \sigma_1) \vdash M : \sigma_2}
         {\Gamma \vdash \lambda x : \sigma_1.M : (\sigma_1 \rightarrow \sigma_2)}
     \end{mathpar}
+    With the context $\Gamma$ inductively defined as : $(x : \sigma_1)\in\Gamma::(y : \sigma_2)$ if $(x : \sigma_1)\equiv(y : \sigma_2)$ or $(x : \sigma_1)\in\Gamma$ and $(x : \sigma_1)\not\in\emptyset$ where $"::"$ is the appending operator and $\emptyset$ the empty context.
 
     
     
