@@ -9,7 +9,7 @@ Coq is a formal proof management system. It provides a formal language to write 
 ### Getting started
 
 - [ ] [Try JsCoq in your browser](https://coq.vercel.app/)
-- [ ] [Install Coq onn your computer](https://github.com/coq/platform/releases/tag/2023.11.0)
+- [ ] [Install Coq on your computer](https://github.com/coq/platform/releases/tag/2023.11.0)
 - [ ] [Add VsCoq extension to VsCode](https://github.com/coq-community/vscoq)
 
 ### References
