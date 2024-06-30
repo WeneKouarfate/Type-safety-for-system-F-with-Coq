@@ -455,7 +455,7 @@ Inductive $BV$ ($\Delta$:ctxT) : typ -> Prop :=\\
   | bv\_nat : $BV$ $\Delta$ Nat\\
   | bv\_varT : forall ($\alpha$:nat),
                 $\alpha\in\Delta$ -> $BV$ $\Delta$ $\alpha$\\
-  | bv\_arr : forall ($\sigma$ $\delta$:typ),($BV$ $\Delta$ $\sigma$) ->($BV$ $\Delta$ $\delta$)->($BV$ $\Delta$ ($\sigma\rightarrow\delta$))\\
+  | bv\_arr : forall ($\sigma$ $\delta$:typ),($BV$ $\Delta$ $\sigma$)->($BV$ $\Delta$ $\delta$)->($BV$ $\Delta$ ($\sigma\rightarrow\delta$))\\
   | bv\_all : forall ($\alpha$:nat)($\sigma$:typ),
                 ($BV$ $\Delta::\alpha$ $\sigma$) -> ($BV$ $\Delta$ $\forall \alpha.\sigma$).
 }
@@ -576,8 +576,9 @@ Inductive $BV$ ($\Delta$:ctxT) : typ -> Prop :=\\
     Some implementation precisions: we have separated the 'informal' context we have used since the beginning into two different types of contexts: the first (usually $\Gamma$  of type \texttt{ctxV} in implementation) for bindings of term variables to their types and the second (usually $\Delta$ of type \texttt{ctxT} in implementation) for bound type variables. The appending operator on contexts is $"::"$.\\
     
     \AxiomC{$x : \sigma \in \Gamma$}
+    \AxiomC{$\sigma\in BV(\Delta)$}
     \RightLabel{(Var)}
-    \UnaryInfC{$\Gamma, \Delta \vdash x : \sigma$}
+    \BinaryInfC{$\Gamma, \Delta \vdash x : \sigma$}
     \DisplayProof
     \AxiomC{$\Gamma :: (x : \sigma) , \Delta\vdash M : \delta$}
     \AxiomC{$\sigma\in BV(\Delta)$}
