@@ -21,4 +21,4 @@ Coq is a formal proof management system. It provides a formal language to write 
 ## Type safety and System F
 
 - [ ] [Types and programming languages](https://www.cis.upenn.edu/~bcpierce/tapl/)
-- [ ] [Software fondation](https://softwarefoundations.cis.upenn.edu/)
+- [ ] [Software foundation](https://softwarefoundations.cis.upenn.edu/)
